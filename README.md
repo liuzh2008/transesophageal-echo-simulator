@@ -92,4 +92,4 @@ npm run test:coverage
 
 ## 注意事项
 
-整个TDD实施指南完成后，请手动运行 `mvn test` 来进行整个系统的测试。
+整个TDD实施指南完成后，请手动运行 `npm test` 来进行整个系统的测试。
