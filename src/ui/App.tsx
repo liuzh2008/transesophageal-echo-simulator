@@ -5,6 +5,7 @@ import Panel from './components/Panel';
 import Button from './components/Button';
 import Slider from './components/Slider';
 import ThemeProvider from './components/ThemeProvider';
+import { ZoomProvider, useZoomControls, useZoomState } from '../core/zoom/ZoomContext';
 
 /**
  * 食道超声模拟软件主应用组件

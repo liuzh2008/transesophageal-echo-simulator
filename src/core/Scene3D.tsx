@@ -133,6 +133,15 @@ const Scene3D: React.FC<SceneConfig> = ({
     };
   }, [initializeScene, animate, handleResize, cleanup]);
 
+  /**
+   * 响应相机距离变化
+   */
+  useEffect(() => {
+    if (cameraRef.current) {
+      cameraRef.current.position.z = cameraDistance;
+    }
+  }, [cameraDistance]);
+
   return (
     <div 
       ref={mountRef} 
