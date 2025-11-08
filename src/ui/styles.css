@@ -67,6 +67,170 @@ body {
   font-weight: 500;
 }
 
+/* 响应式布局组件样式 */
+.responsive-layout {
+  width: 100%;
+  height: 100%;
+}
+
+/* 自适应控件组件样式 */
+.adaptive-control {
+  width: 100%;
+  height: auto;
+}
+
+/* 触摸交互组件样式 */
+.touch-interaction {
+  touch-action: manipulation;
+}
+
+/* 按钮组件样式 */
+.button {
+  padding: 12px 24px;
+  border: none;
+  border-radius: 4px;
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  min-width: 80px;
+}
+
+.button--primary {
+  background-color: #007bff;
+  color: white;
+}
+
+.button--primary:hover {
+  background-color: #0056b3;
+}
+
+.button--secondary {
+  background-color: #6c757d;
+  color: white;
+}
+
+.button--secondary:hover {
+  background-color: #545b62;
+}
+
+.button--danger {
+  background-color: #dc3545;
+  color: white;
+}
+
+.button--danger:hover {
+  background-color: #c82333;
+}
+
+.button:disabled {
+  background-color: #6c757d;
+  cursor: not-allowed;
+  opacity: 0.6;
+}
+
+/* 滑块组件样式 */
+.slider {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.slider__input {
+  flex: 1;
+  height: 6px;
+  border-radius: 3px;
+  background: #ddd;
+  outline: none;
+  opacity: 0.7;
+  transition: opacity 0.2s;
+}
+
+.slider__input:hover {
+  opacity: 1;
+}
+
+.slider__input::-webkit-slider-thumb {
+  appearance: none;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: #007bff;
+  cursor: pointer;
+}
+
+.slider__value {
+  min-width: 40px;
+  text-align: center;
+  font-weight: 500;
+  color: #333;
+}
+
+/* 面板组件样式 */
+.panel {
+  background: white;
+  border-radius: 8px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+  overflow: hidden;
+}
+
+.panel__header {
+  padding: 16px 20px;
+  background: #f8f9fa;
+  border-bottom: 1px solid #e9ecef;
+}
+
+.panel__title {
+  margin: 0;
+  font-size: 16px;
+  font-weight: 600;
+  color: #333;
+}
+
+.panel__content {
+  padding: 20px;
+}
+
+/* 应用布局重构 */
+.app-content {
+  display: flex;
+  gap: 20px;
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 20px;
+}
+
+.scene-section {
+  flex: 3;
+}
+
+.controls-section {
+  flex: 1;
+  min-width: 250px;
+}
+
+.scene-panel .panel__content {
+  padding: 0;
+}
+
+.controls-panel .panel__content {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.control-group {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.control-group label {
+  font-size: 14px;
+  font-weight: 500;
+  color: #333;
+}
+
 /* 响应式设计 */
 @media (max-width: 768px) {
   .app-header {
@@ -88,5 +252,42 @@ body {
   
   .scene-container p {
     font-size: 1.2rem;
+  }
+
+  .app-content {
+    flex-direction: column;
+    padding: 10px;
+  }
+
+  .controls-section {
+    min-width: auto;
+  }
+
+  .panel__content {
+    padding: 16px;
+  }
+}
+
+@media (max-width: 480px) {
+  .app-header {
+    padding: 1rem;
+  }
+  
+  .app-header h1 {
+    font-size: 1.5rem;
+  }
+  
+  .app-header p {
+    font-size: 0.9rem;
+  }
+  
+  .scene-container {
+    padding: 1rem;
+    min-width: 250px;
+  }
+  
+  .button {
+    padding: 10px 20px;
+    font-size: 13px;
   }
 }
