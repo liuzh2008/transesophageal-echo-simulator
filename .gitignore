@@ -49,6 +49,9 @@ coverage/
 # TypeScript cache
 *.tsbuildinfo
 
+# Patient medical data - should not be committed to version control
+patients/
+
 # Optional npm cache directory
 .npm
 
