@@ -4,6 +4,7 @@
 - 服务类：`src/core/services/STLLoaderService.ts`
 - 服务类：`src/core/services/FileSystemService.ts`
 - 管理器类：`src/core/managers/ModelManager.ts`
+- 状态管理类：`src/data/models/ModelStore.ts`
 
 ## **功能说明**
 STL文件加载功能提供完整的3D模型文件加载、解析和管理能力，支持从用户选择的STL文件加载心脏模型并在3D场景中显示。
@@ -56,6 +57,63 @@ STL文件加载功能提供完整的3D模型文件加载、解析和管理能力
 **参数**:
 - `mesh: THREE.Mesh | null` - 要释放的网格对象
 
+### ModelStore状态管理接口
+
+#### ModelStore.getState
+**功能**: 获取当前模型加载状态
+**参数**: 无
+**返回**: `ModelState` - 当前状态对象
+
+#### ModelStore.startLoading
+**功能**: 开始加载状态
+**参数**: 无
+**返回**: `void`
+
+#### ModelStore.setSuccess
+**功能**: 设置加载成功状态
+**参数**:
+- `model: STLModel` - 加载成功的模型数据
+**返回**: `void`
+
+#### ModelStore.setError
+**功能**: 设置加载失败状态
+**参数**:
+- `error: string` - 错误信息
+**返回**: `void`
+
+#### ModelStore.updateProgress
+**功能**: 更新加载进度
+**参数**:
+- `progress: number` - 进度值 (0-100)
+**返回**: `void`
+
+#### ModelStore.reset
+**功能**: 重置状态
+**参数**: 无
+**返回**: `void`
+
+#### ModelStore.subscribe
+**功能**: 订阅状态变化
+**参数**:
+- `listener: StateListener` - 状态变化监听器
+**返回**: `() => void` - 取消订阅函数
+
+#### ModelStore.getHistory
+**功能**: 获取状态变化历史
+**参数**: 无
+**返回**: `ModelState[]` - 状态历史数组
+
+#### ModelStore.serialize
+**功能**: 序列化状态
+**参数**: 无
+**返回**: `string` - 序列化的状态字符串
+
+#### ModelStore.deserialize
+**功能**: 反序列化状态
+**参数**:
+- `serialized: string` - 序列化的状态字符串
+**返回**: `void`
+
 ## **响应格式**
 
 ### STLLoaderService响应
@@ -106,6 +164,28 @@ const preloadResult: PreloadResult = {
   failed: number,
   errors: Array<{ fileName: string, error: string }>
 }
+```
+
+### ModelStore响应
+```typescript
+// 状态对象
+const modelState: ModelState = {
+  isLoading: boolean,
+  currentModel: STLModel | null,
+  error: string | null,
+  progress: number
+}
+
+// 状态历史
+const history: ModelState[] = [
+  { isLoading: false, currentModel: null, error: null, progress: 0 },
+  { isLoading: true, currentModel: null, error: null, progress: 0 },
+  { isLoading: true, currentModel: null, error: null, progress: 50 },
+  { isLoading: false, currentModel: STLModel, error: null, progress: 100 }
+]
+
+// 序列化状态
+const serialized: string = '{"isLoading":false,"currentModel":null,"error":null,"progress":0}'
 ```
 
 ## **逻辑**
@@ -210,6 +290,7 @@ console.log(stats);
 - `src/core/services/STLLoaderService.ts` - STL文件解析服务
 - `src/core/services/FileSystemService.ts` - 文件系统抽象服务
 - `src/core/managers/ModelManager.ts` - 模型生命周期管理器
+- `src/data/models/ModelStore.ts` - 模型状态管理器
 - `src/ui/components/ConfirmationDialog.tsx` - 确认对话框组件
 - `src/ui/components/FileSelector.tsx` - 文件选择器组件
 
@@ -221,12 +302,15 @@ console.log(stats);
 - `tests/unit/services/STLLoaderService.test.ts` - STL加载服务测试
 - `tests/unit/services/FileSystemService.test.ts` - 文件系统服务测试
 - `tests/unit/managers/ModelManager.test.ts` - 模型管理器测试
+- `tests/unit/managers/ModelStore.test.ts` - 模型状态管理器测试
 - `tests/ui/stl-file-loader.test.tsx` - STL文件加载器UI测试
 
 ### 类型定义文件
 - `src/core/services/STLLoaderService.ts` - 包含STL加载相关类型
 - `src/core/services/FileSystemService.ts` - 包含文件系统相关类型
 - `src/core/managers/ModelManager.ts` - 包含模型管理相关类型
+- `src/data/models/ModelStore.ts` - 包含状态管理相关类型
+- `src/core/types/STLModel.ts` - 包含STL模型数据结构定义
 - `src/ui/components/ConfirmationDialog.tsx` - 包含确认对话框相关类型
 - `src/ui/components/FileSelector.tsx` - 包含文件选择器相关类型
 
