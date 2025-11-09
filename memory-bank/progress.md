@@ -1,8 +1,8 @@
 # 项目进度跟踪
 
 ## 项目状态概览
-- **项目阶段**: STL文件加载功能TDD实施 - 数据层和业务逻辑层完成
-- **总体进度**: 70%
+- **项目阶段**: STL文件加载功能TDD实施 - 文件选择界面集成完成
+- **总体进度**: 75%
 - **当前里程碑**: M2 - 核心功能实现 (进行中)
 - **下一里程碑**: M2 - 核心功能实现 (第4周末)
 
@@ -108,6 +108,7 @@
 - 2025-11-09: STL文件加载功能数据层和业务逻辑层完成
 - 2025-11-09: 文件大小限制调整方案设计完成（解决247.06MB文件被拒绝问题）
 - 2025-11-09: ModelStore状态管理功能TDD实施完成（14个测试全部通过）
+- 2025-11-09: 文件选择界面集成功能TDD实施完成（ModelIntegrationService + 集成测试）
 
 ## 下一步计划
 
@@ -118,8 +119,9 @@
   - [x] FileSystemService - 文件系统抽象服务
   - [x] ModelManager - 模型生命周期管理
   - [x] 状态管理层：ModelStore
-  - [ ] 表示层：FileSelector、LoadingIndicator组件
-  - [ ] Scene3D组件扩展支持模型props
+  - [x] 表示层：FileSelector、LoadingIndicator组件集成
+  - [x] ModelIntegrationService - 文件选择器与模型状态管理集成
+  - [x] Scene3D组件扩展支持模型props
   - [ ] App组件集成STL文件加载功能
 
 - [ ] **第4周**: 切面计算和可视化
