@@ -35,6 +35,8 @@ interface SceneConfig {
  * - 使用useCallback优化动画函数
  * - 添加窗口大小变化响应
  * - 改进错误处理和资源清理
+ * - 提取常量定义，提高代码可维护性
+ * - 优化光照配置，提高渲染质量
  */
 const Scene3D: React.FC<SceneConfig> = ({
   backgroundColor = 0xf0f0f0,
