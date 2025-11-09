@@ -172,22 +172,63 @@ console.log(stats);
 // }
 ```
 
+## **新增接口**
+
+### ConfirmationDialog组件
+**组件路径**: `src/ui/components/ConfirmationDialog.tsx`
+**功能**: 大文件加载确认对话框组件
+
+**Props接口**:
+- `isOpen: boolean` - 对话框是否显示
+- `title: string` - 对话框标题
+- `message: string` - 确认消息内容
+- `fileSize?: string` - 文件大小信息（可选）
+- `onConfirm: () => void` - 确认回调函数
+- `onCancel: () => void` - 取消回调函数
+
+### FileSelector组件更新
+**组件路径**: `src/ui/components/FileSelector.tsx`
+**功能**: 文件选择器组件，支持文件大小限制和确认机制
+
+**Props接口**:
+- `onFileSelect: (file: File) => void` - 文件选择回调
+- `onError?: (error: string) => void` - 错误处理回调（可选）
+- `accept?: string` - 接受的文件类型（可选，默认".stl"）
+- `buttonText?: string` - 按钮文本（可选，默认"选择文件"）
+- `maxSize?: number` - 最大文件大小（可选，默认250MB）
+- `confirmationThreshold?: number` - 确认阈值（可选，默认150MB）
+
+**新增功能**:
+- 文件大小限制从50MB提高到250MB
+- 150MB-250MB文件显示确认对话框
+- 显示文件大小限制信息
+- 改进的错误消息和用户提示
+
 ## **相关文件**
 
 ### 核心实现文件
 - `src/core/services/STLLoaderService.ts` - STL文件解析服务
 - `src/core/services/FileSystemService.ts` - 文件系统抽象服务
 - `src/core/managers/ModelManager.ts` - 模型生命周期管理器
+- `src/ui/components/ConfirmationDialog.tsx` - 确认对话框组件
+- `src/ui/components/FileSelector.tsx` - 文件选择器组件
+
+### 样式文件
+- `src/ui/components/confirmation-dialog.css` - 确认对话框样式
+- `src/ui/components/file-selector.css` - 文件选择器样式
 
 ### 测试文件
 - `tests/unit/services/STLLoaderService.test.ts` - STL加载服务测试
 - `tests/unit/services/FileSystemService.test.ts` - 文件系统服务测试
 - `tests/unit/managers/ModelManager.test.ts` - 模型管理器测试
+- `tests/ui/stl-file-loader.test.tsx` - STL文件加载器UI测试
 
 ### 类型定义文件
 - `src/core/services/STLLoaderService.ts` - 包含STL加载相关类型
 - `src/core/services/FileSystemService.ts` - 包含文件系统相关类型
 - `src/core/managers/ModelManager.ts` - 包含模型管理相关类型
+- `src/ui/components/ConfirmationDialog.tsx` - 包含确认对话框相关类型
+- `src/ui/components/FileSelector.tsx` - 包含文件选择器相关类型
 
 ### 文档文件
 - `doc/方案/TDD实施指南-STL文件加载功能.md` - TDD实施指南

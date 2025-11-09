@@ -1,11 +1,11 @@
-import React from 'react';
+import React, { useState } from 'react';
 import Scene3D from '../core/Scene3D';
 import ResponsiveLayout from './components/ResponsiveLayout';
 import Panel from './components/Panel';
 import Button from './components/Button';
 import Slider from './components/Slider';
 import ThemeProvider from './components/ThemeProvider';
-import { ZoomProvider, useZoomControls, useZoomState } from '../core/zoom/ZoomContext';
+import STLFileLoader, { STLModel } from './components/STLFileLoader';
 
 /**
  * 食道超声模拟软件主应用组件
@@ -25,6 +25,42 @@ import { ZoomProvider, useZoomControls, useZoomState } from '../core/zoom/ZoomCo
  * @returns {JSX.Element} 渲染完整的应用界面
  */
 const App: React.FC = () => {
+  const [currentModel, setCurrentModel] = useState<STLModel | null>(null);
+  const [showDefaultCube, setShowDefaultCube] = useState(true);
+
+  // 调试信息
+  console.log('App组件渲染 - STLFileLoader组件应该显示');
+
+  /**
+   * 处理STL模型加载
+   * @function
+   * @description 处理STL文件加载完成后的模型数据
+   * @param {STLModel} model - 加载的STL模型数据
+   * @example
+   * ```tsx
+   * <STLFileLoader onModelLoad={handleModelLoad} />
+   * ```
+   */
+  const handleModelLoad = (model: STLModel) => {
+    console.log('STL模型加载完成:', model);
+    setCurrentModel(model);
+    setShowDefaultCube(false);
+  };
+
+  /**
+   * 处理加载错误
+   * @function
+   * @description 处理STL文件加载过程中的错误
+   * @param {string} error - 错误信息
+   * @example
+   * ```tsx
+   * <STLFileLoader onError={handleLoadError} />
+   * ```
+   */
+  const handleLoadError = (error: string) => {
+    console.error('STL文件加载错误:', error);
+  };
+
   /**
    * 重置场景处理函数
    * @function
@@ -36,6 +72,8 @@ const App: React.FC = () => {
    */
   const handleReset = () => {
     console.log('重置场景');
+    setCurrentModel(null);
+    setShowDefaultCube(true);
   };
 
   /**
@@ -65,11 +103,21 @@ const App: React.FC = () => {
               <div className="scene-section">
                 <Panel title="3D场景视图" className="scene-panel">
                   <div className="scene-container">
-                    <Scene3D />
+                    <Scene3D 
+                      model={currentModel}
+                      showDefaultCube={showDefaultCube}
+                    />
                   </div>
                 </Panel>
               </div>
               <div className="controls-section">
+                <Panel title="STL文件加载" className="controls-panel">
+                  <STLFileLoader 
+                    onModelLoad={handleModelLoad}
+                    onError={handleLoadError}
+                  />
+                </Panel>
+                
                 <Panel title="场景控制" className="controls-panel">
                   <div className="control-group">
                     <Button onClick={handleReset} variant="secondary">

@@ -1,0 +1,194 @@
+/**
+ * 文件选择器样式文件
+ * 提供文件选择器组件和文件大小信息提示的样式定义
+ */
+
+.file-selector {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  padding: 16px;
+  border: 1px solid #e1e5e9;
+  border-radius: 8px;
+  background-color: #f8f9fa;
+  transition: all 0.2s ease-in-out;
+}
+
+.file-selector:hover {
+  border-color: #3182ce;
+  box-shadow: 0 2px 8px rgba(49, 130, 206, 0.1);
+}
+
+.file-selector-button {
+  padding: 12px 24px;
+  background-color: #3182ce;
+  color: white;
+  border: none;
+  border-radius: 6px;
+  font-size: 1rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s ease-in-out;
+  min-width: 140px;
+}
+
+.file-selector-button:hover:not(:disabled) {
+  background-color: #2c5aa0;
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(49, 130, 206, 0.3);
+}
+
+.file-selector-button:disabled {
+  background-color: #a0aec0;
+  cursor: not-allowed;
+  opacity: 0.6;
+}
+
+.file-selector-button:active:not(:disabled) {
+  transform: translateY(0);
+  box-shadow: 0 2px 4px rgba(49, 130, 206, 0.2);
+}
+
+.file-size-info {
+  text-align: center;
+  padding: 8px 12px;
+  background-color: #edf2f7;
+  border: 1px solid #e2e8f0;
+  border-radius: 4px;
+  color: #4a5568;
+  font-size: 0.85rem;
+  transition: all 0.2s ease-in-out;
+}
+
+.file-size-info:hover {
+  background-color: #e2e8f0;
+  border-color: #cbd5e0;
+}
+
+.file-size-info small {
+  font-weight: 500;
+}
+
+/* 文件选择器状态指示器 */
+.file-selector-status {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  border-radius: 4px;
+  font-size: 0.9rem;
+  font-weight: 500;
+}
+
+.file-selector-status.ready {
+  background-color: #f0fff4;
+  border: 1px solid #9ae6b4;
+  color: #276749;
+}
+
+.file-selector-status.warning {
+  background-color: #fffaf0;
+  border: 1px solid #faf089;
+  color: #975a16;
+}
+
+.file-selector-status.error {
+  background-color: #fed7d7;
+  border: 1px solid #feb2b2;
+  color: #c53030;
+}
+
+/* 响应式设计 */
+@media (max-width: 480px) {
+  .file-selector {
+    padding: 12px;
+    gap: 6px;
+  }
+  
+  .file-selector-button {
+    padding: 10px 20px;
+    font-size: 0.9rem;
+    min-width: 120px;
+  }
+  
+  .file-size-info {
+    padding: 6px 10px;
+    font-size: 0.8rem;
+  }
+}
+
+/* 深色主题支持 */
+@media (prefers-color-scheme: dark) {
+  .file-selector {
+    background-color: #2d3748;
+    border-color: #4a5568;
+  }
+  
+  .file-selector:hover {
+    border-color: #63b3ed;
+    box-shadow: 0 2px 8px rgba(99, 179, 237, 0.1);
+  }
+  
+  .file-selector-button {
+    background-color: #3182ce;
+  }
+  
+  .file-selector-button:hover:not(:disabled) {
+    background-color: #2c5aa0;
+    box-shadow: 0 4px 12px rgba(49, 130, 206, 0.4);
+  }
+  
+  .file-selector-button:disabled {
+    background-color: #718096;
+  }
+  
+  .file-size-info {
+    background-color: #4a5568;
+    border-color: #718096;
+    color: #e2e8f0;
+  }
+  
+  .file-size-info:hover {
+    background-color: #718096;
+    border-color: #a0aec0;
+  }
+  
+  .file-selector-status.ready {
+    background-color: #22543d;
+    border-color: #48bb78;
+    color: #9ae6b4;
+  }
+  
+  .file-selector-status.warning {
+    background-color: #744210;
+    border-color: #ed8936;
+    color: #fed7d7;
+  }
+  
+  .file-selector-status.error {
+    background-color: #742a2a;
+    border-color: #fc8181;
+    color: #fed7d7;
+  }
+}
+
+/* 动画效果 */
+@keyframes fadeInUp {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.file-selector {
+  animation: fadeInUp 0.3s ease-out;
+}
+
+.file-size-info {
+  animation: fadeInUp 0.4s ease-out 0.1s both;
+}

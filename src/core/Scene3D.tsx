@@ -2,6 +2,15 @@ import React, { useRef, useEffect, useCallback } from 'react';
 import * as THREE from 'three';
 
 /**
+ * STL模型数据接口
+ */
+interface STLModel {
+  vertices: number[];
+  normals: number[];
+  faces: number[];
+}
+
+/**
  * 3D场景配置接口
  */
 interface SceneConfig {
@@ -10,6 +19,10 @@ interface SceneConfig {
   cubeSize?: number;
   cameraDistance?: number;
   animationSpeed?: number;
+  /** STL模型数据 */
+  model?: STLModel | null;
+  /** 是否显示默认立方体 */
+  showDefaultCube?: boolean;
 }
 
 /**
@@ -28,13 +41,16 @@ const Scene3D: React.FC<SceneConfig> = ({
   cubeColor = 0x00ff00,
   cubeSize = 1,
   cameraDistance = 5,
-  animationSpeed = 0.01
+  animationSpeed = 0.01,
+  model = null,
+  showDefaultCube = true
 }) => {
   const mountRef = useRef<HTMLDivElement>(null);
   const sceneRef = useRef<THREE.Scene | null>(null);
   const cameraRef = useRef<THREE.PerspectiveCamera | null>(null);
   const rendererRef = useRef<THREE.WebGLRenderer | null>(null);
   const cubeRef = useRef<THREE.Mesh | null>(null);
+  const modelRef = useRef<THREE.Mesh | null>(null);
   const animationIdRef = useRef<number | null>(null);
 
   /**
@@ -53,11 +69,14 @@ const Scene3D: React.FC<SceneConfig> = ({
     renderer.setClearColor(backgroundColor);
     mountRef.current.appendChild(renderer.domElement);
 
-    // 基础几何体
-    const geometry = new THREE.BoxGeometry(cubeSize, cubeSize, cubeSize);
-    const material = new THREE.MeshBasicMaterial({ color: cubeColor });
-    const cube = new THREE.Mesh(geometry, material);
-    scene.add(cube);
+    // 基础几何体（可选）
+    if (showDefaultCube) {
+      const geometry = new THREE.BoxGeometry(cubeSize, cubeSize, cubeSize);
+      const material = new THREE.MeshBasicMaterial({ color: cubeColor });
+      const cube = new THREE.Mesh(geometry, material);
+      scene.add(cube);
+      cubeRef.current = cube;
+    }
 
     // 相机位置
     camera.position.z = cameraDistance;
@@ -66,23 +85,96 @@ const Scene3D: React.FC<SceneConfig> = ({
     sceneRef.current = scene;
     cameraRef.current = camera;
     rendererRef.current = renderer;
-    cubeRef.current = cube;
 
-    return { scene, camera, renderer, cube };
-  }, [backgroundColor, cubeColor, cubeSize, cameraDistance]);
+    return { scene, camera, renderer };
+  }, [backgroundColor, cubeColor, cubeSize, cameraDistance, showDefaultCube]);
+
+  /**
+   * 加载STL模型
+   */
+  const loadSTLModel = useCallback((modelData: STLModel) => {
+    if (!sceneRef.current) return;
+
+    // 清理现有模型
+    if (modelRef.current) {
+      sceneRef.current.remove(modelRef.current);
+      modelRef.current = null;
+    }
+
+    // 创建几何体
+    const geometry = new THREE.BufferGeometry();
+    
+    // 设置顶点
+    const vertices = new Float32Array(modelData.vertices);
+    geometry.setAttribute('position', new THREE.BufferAttribute(vertices, 3));
+    
+    // 设置法线
+    if (modelData.normals && modelData.normals.length > 0) {
+      const normals = new Float32Array(modelData.normals);
+      geometry.setAttribute('normal', new THREE.BufferAttribute(normals, 3));
+    }
+    
+    // 设置面
+    if (modelData.faces && modelData.faces.length > 0) {
+      const indices = new Uint32Array(modelData.faces);
+      geometry.setIndex(new THREE.BufferAttribute(indices, 1));
+    }
+
+    // 计算边界框和中心点
+    geometry.computeBoundingBox();
+    geometry.computeBoundingSphere();
+
+    // 创建材质和网格
+    const material = new THREE.MeshPhongMaterial({ 
+      color: 0x2196f3,
+      specular: 0x111111,
+      shininess: 30,
+      transparent: true,
+      opacity: 0.8
+    });
+    
+    const mesh = new THREE.Mesh(geometry, material);
+    
+    // 调整模型位置到场景中心
+    if (geometry.boundingBox) {
+      const center = geometry.boundingBox.getCenter(new THREE.Vector3());
+      mesh.position.sub(center);
+    }
+
+    sceneRef.current.add(mesh);
+    modelRef.current = mesh;
+
+    // 添加环境光
+    const ambientLight = new THREE.AmbientLight(0x404040, 0.6);
+    sceneRef.current.add(ambientLight);
+
+    // 添加方向光
+    const directionalLight = new THREE.DirectionalLight(0xffffff, 0.8);
+    directionalLight.position.set(1, 1, 1);
+    sceneRef.current.add(directionalLight);
+
+  }, []);
 
   /**
    * 动画循环
    */
   const animate = useCallback(() => {
-    if (!cubeRef.current || !sceneRef.current || !cameraRef.current || !rendererRef.current) return;
+    if (!sceneRef.current || !cameraRef.current || !rendererRef.current) return;
 
-    cubeRef.current.rotation.x += animationSpeed;
-    cubeRef.current.rotation.y += animationSpeed;
+    // 旋转默认立方体
+    if (cubeRef.current && showDefaultCube) {
+      cubeRef.current.rotation.x += animationSpeed;
+      cubeRef.current.rotation.y += animationSpeed;
+    }
+
+    // 旋转STL模型
+    if (modelRef.current) {
+      modelRef.current.rotation.y += animationSpeed * 0.5;
+    }
     
     rendererRef.current.render(sceneRef.current, cameraRef.current);
     animationIdRef.current = requestAnimationFrame(animate);
-  }, [animationSpeed]);
+  }, [animationSpeed, showDefaultCube]);
 
   /**
    * 处理窗口大小变化
@@ -141,6 +233,19 @@ const Scene3D: React.FC<SceneConfig> = ({
       cameraRef.current.position.z = cameraDistance;
     }
   }, [cameraDistance]);
+
+  /**
+   * 响应模型变化
+   */
+  useEffect(() => {
+    if (model) {
+      loadSTLModel(model);
+    } else if (modelRef.current && sceneRef.current) {
+      // 清理模型
+      sceneRef.current.remove(modelRef.current);
+      modelRef.current = null;
+    }
+  }, [model, loadSTLModel]);
 
   return (
     <div 

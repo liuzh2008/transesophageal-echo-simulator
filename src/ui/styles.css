@@ -209,6 +209,13 @@ body {
   min-width: 250px;
 }
 
+.controls-container {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  flex: 1;
+}
+
 .scene-panel .panel__content {
   padding: 0;
 }

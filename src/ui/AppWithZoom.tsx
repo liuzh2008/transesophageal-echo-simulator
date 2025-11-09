@@ -1,11 +1,51 @@
-import React from 'react';
+import React, { useState } from 'react';
 import Scene3D from '../core/Scene3D';
 import ResponsiveLayout from './components/ResponsiveLayout';
 import Panel from './components/Panel';
 import Button from './components/Button';
 import Slider from './components/Slider';
 import ThemeProvider from './components/ThemeProvider';
+import STLFileLoader, { STLModel } from './components/STLFileLoader';
 import { ZoomProvider, useZoomControls, useZoomState } from '../core/zoom/ZoomContext';
+
+/**
+ * STL文件加载组件
+ * 负责STL模型文件的加载和管理
+ */
+const STLFileLoaderComponent: React.FC = () => {
+  const [currentModel, setCurrentModel] = useState<STLModel | null>(null);
+  const [showDefaultCube, setShowDefaultCube] = useState(true);
+
+  // 调试信息
+  console.log('STLFileLoaderComponent渲染');
+
+  /**
+   * 处理STL模型加载
+   */
+  const handleModelLoad = (model: STLModel) => {
+    console.log('STL模型加载完成:', model);
+    setCurrentModel(model);
+    setShowDefaultCube(false);
+  };
+
+  /**
+   * 处理加载错误
+   */
+  const handleLoadError = (error: string) => {
+    console.error('STL文件加载错误:', error);
+  };
+
+  return (
+    <div className="controls-section">
+      <Panel title="STL文件加载" className="controls-panel">
+        <STLFileLoader 
+          onModelLoad={handleModelLoad}
+          onError={handleLoadError}
+        />
+      </Panel>
+    </div>
+  );
+};
 
 /**
  * 缩放控制组件
@@ -92,7 +132,10 @@ const AppWithZoom: React.FC = () => {
             <main className="app-main">
               <div className="app-content">
                 <SceneWithZoom />
-                <ZoomControls />
+                <div className="controls-container">
+                  <STLFileLoaderComponent />
+                  <ZoomControls />
+                </div>
               </div>
             </main>
           </div>
