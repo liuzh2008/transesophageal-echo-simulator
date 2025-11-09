@@ -49,8 +49,10 @@ const STLFileLoader: React.FC<STLFileLoaderProps> = ({
   const [error, setError] = useState<string | null>(null);
   const [progress, setProgress] = useState(0);
 
-  // 调试信息
-  console.log('STLFileLoader组件渲染');
+  // 组件渲染日志（开发环境）
+  if (process.env.NODE_ENV === 'development') {
+    console.log('STLFileLoader组件渲染');
+  }
 
   /**
    * 模拟STL文件解析过程
@@ -75,6 +77,12 @@ const STLFileLoader: React.FC<STLFileLoaderProps> = ({
         setProgress(100);
 
         try {
+          // 模拟随机错误（用于测试错误处理）
+          const shouldFail = Math.random() < 0.3; // 30%概率失败
+          if (shouldFail) {
+            throw new Error('模拟STL文件解析错误：文件格式不正确');
+          }
+
           // 这里应该调用实际的STL解析服务
           // 目前返回模拟数据
           const mockModel: STLModel = {
@@ -111,7 +119,11 @@ const STLFileLoader: React.FC<STLFileLoaderProps> = ({
    */
   const handleFileSelect = useCallback(async (file: File) => {
     try {
-      console.log('选择的文件:', file.name, file.size, file.type);
+      // 开发环境日志
+      if (process.env.NODE_ENV === 'development') {
+        console.log('选择的文件:', file.name, file.size, file.type);
+      }
+      
       // 这里应该调用实际的STL解析服务
       // 目前使用模拟解析
       const model = await parseSTLFile();
@@ -170,7 +182,7 @@ const STLFileLoader: React.FC<STLFileLoaderProps> = ({
           <p>请选择STL格式的心脏模型文件</p>
           <ul>
             <li>支持标准STL文件格式</li>
-            <li>文件大小限制: 50MB</li>
+            <li>文件大小限制: 250MB</li>
             <li>建议使用心脏解剖模型</li>
           </ul>
         </div>
