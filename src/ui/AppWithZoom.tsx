@@ -12,8 +12,11 @@ import { ZoomProvider, useZoomControls, useZoomState } from '../core/zoom/ZoomCo
  * STL文件加载组件
  * 负责STL模型文件的加载和管理
  */
-const STLFileLoaderComponent: React.FC = () => {
-  const [currentModel, setCurrentModel] = useState<STLModel | null>(null);
+interface STLFileLoaderComponentProps {
+  onModelLoad: (model: STLModel) => void;
+}
+
+const STLFileLoaderComponent: React.FC<STLFileLoaderComponentProps> = ({ onModelLoad }) => {
   const [showDefaultCube, setShowDefaultCube] = useState(true);
 
   // 调试信息
@@ -24,7 +27,7 @@ const STLFileLoaderComponent: React.FC = () => {
    */
   const handleModelLoad = (model: STLModel) => {
     console.log('STL模型加载完成:', model);
-    setCurrentModel(model);
+    onModelLoad(model);
     setShowDefaultCube(false);
   };
 
@@ -59,6 +62,7 @@ const ZoomControls: React.FC = () => {
    * 处理缩放值变化
    */
   const handleZoomChange = (value: number) => {
+    console.log('ZoomControls: 设置缩放值:', value);
     setZoom(value);
   };
 
@@ -94,16 +98,32 @@ const ZoomControls: React.FC = () => {
 
 /**
  * 3D场景组件
- * 负责3D场景渲染，接收缩放参数
+ * 负责3D场景渲染，接收缩放参数和模型数据
  */
-const SceneWithZoom: React.FC = () => {
+interface SceneWithZoomProps {
+  model?: STLModel | null;
+}
+
+const SceneWithZoom: React.FC<SceneWithZoomProps> = ({ model }) => {
   const { getCameraDistance } = useZoomControls();
+  const zoomState = useZoomState();
+
+  // 使用useMemo缓存相机距离，只在缩放值变化时重新计算
+  const cameraDistance = React.useMemo(() => {
+    const distance = getCameraDistance();
+    console.log('SceneWithZoom: 计算相机距离, 缩放值:', zoomState.value, '相机距离:', distance);
+    return distance;
+  }, [getCameraDistance, zoomState.value]);
 
   return (
     <div className="scene-section">
       <Panel title="3D场景视图" className="scene-panel">
         <div className="scene-container">
-          <Scene3D cameraDistance={getCameraDistance()} />
+          <Scene3D 
+            cameraDistance={cameraDistance} 
+            model={model}
+            showDefaultCube={!model} // 有模型时不显示默认立方体
+          />
         </div>
       </Panel>
     </div>
@@ -120,6 +140,16 @@ const SceneWithZoom: React.FC = () => {
  * @returns {JSX.Element} 渲染完整的应用界面
  */
 const AppWithZoom: React.FC = () => {
+  const [currentModel, setCurrentModel] = useState<STLModel | null>(null);
+
+  /**
+   * 处理STL模型加载
+   */
+  const handleModelLoad = (model: STLModel) => {
+    console.log('AppWithZoom: STL模型加载完成:', model);
+    setCurrentModel(model);
+  };
+
   return (
     <ZoomProvider>
       <ThemeProvider>
@@ -131,9 +161,9 @@ const AppWithZoom: React.FC = () => {
             </header>
             <main className="app-main">
               <div className="app-content">
-                <SceneWithZoom />
+                <SceneWithZoom model={currentModel} />
                 <div className="controls-container">
-                  <STLFileLoaderComponent />
+                  <STLFileLoaderComponent onModelLoad={handleModelLoad} />
                   <ZoomControls />
                 </div>
               </div>

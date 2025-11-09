@@ -2,6 +2,10 @@ import React, { useState, useCallback } from 'react';
 import FileSelector from './FileSelector';
 import LoadingIndicator from './LoadingIndicator';
 import ErrorDisplay from './ErrorDisplay';
+import { STLLoaderService } from '../../core/services/STLLoaderService';
+import { FileSystemService } from '../../core/services/FileSystemService';
+import { ModelStore } from '../../data/models/ModelStore';
+import { ModelIntegrationService } from '../../core/services/ModelIntegrationService';
 import './stl-file-loader.css';
 
 /**
@@ -55,63 +59,52 @@ const STLFileLoader: React.FC<STLFileLoaderProps> = ({
   }
 
   /**
-   * 模拟STL文件解析过程
+   * 使用实际STL解析服务处理文件
    */
-  const parseSTLFile = useCallback(async (): Promise<STLModel> => {
-    return new Promise((resolve, reject) => {
-      setIsLoading(true);
-      setError(null);
-      setProgress(0);
+  const parseSTLFile = useCallback(async (file: File): Promise<STLModel> => {
+    setIsLoading(true);
+    setError(null);
+    setProgress(0);
 
-      // 模拟解析进度
-      const progressInterval = setInterval(() => {
-        setProgress(prev => {
-          const newProgress = prev + Math.random() * 20;
-          return newProgress >= 100 ? 100 : newProgress;
-        });
-      }, 200);
+    try {
+      // 创建服务实例
+      const modelStore = new ModelStore();
+      const stlLoaderService = new STLLoaderService();
+      const fileSystemService = new FileSystemService();
+      const modelIntegrationService = new ModelIntegrationService(
+        modelStore,
+        stlLoaderService,
+        fileSystemService
+      );
 
-      // 模拟异步解析过程
-      setTimeout(() => {
-        clearInterval(progressInterval);
-        setProgress(100);
-
-        try {
-          // 模拟随机错误（用于测试错误处理）
-          const shouldFail = Math.random() < 0.3; // 30%概率失败
-          if (shouldFail) {
-            throw new Error('模拟STL文件解析错误：文件格式不正确');
-          }
-
-          // 这里应该调用实际的STL解析服务
-          // 目前返回模拟数据
-          const mockModel: STLModel = {
-            vertices: [
-              0, 0, 0,    // 顶点1
-              1, 0, 0,    // 顶点2  
-              0, 1, 0,    // 顶点3
-              1, 1, 0     // 顶点4
-            ],
-            normals: [
-              0, 0, 1,    // 法线1
-              0, 0, 1,    // 法线2
-              0, 0, 1,    // 法线3
-              0, 0, 1     // 法线4
-            ],
-            faces: [
-              0, 1, 2,    // 面1
-              1, 3, 2     // 面2
-            ]
-          };
-
-          resolve(mockModel);
-        } catch (parseError) {
-          reject(new Error(`STL文件解析失败: ${parseError}`));
-        } finally {
-          setIsLoading(false);
+      // 监听进度更新
+      const unsubscribe = modelStore.subscribe((state) => {
+        if (state.progress !== undefined) {
+          setProgress(state.progress);
         }
-      }, 2000);
-    });
+      });
+
+      try {
+        // 使用ModelIntegrationService加载模型
+        const mesh = await modelIntegrationService.loadModelFromFile(file);
+        
+        // 获取转换后的STL模型数据
+        const state = modelIntegrationService.getCurrentState();
+        const stlModel = state.currentModel;
+        
+        if (!stlModel) {
+          throw new Error('模型数据转换失败');
+        }
+
+        return stlModel;
+      } finally {
+        unsubscribe();
+      }
+    } catch (error) {
+      throw new Error(`STL文件解析失败: ${error instanceof Error ? error.message : '未知错误'}`);
+    } finally {
+      setIsLoading(false);
+    }
   }, []);
 
   /**
@@ -124,9 +117,8 @@ const STLFileLoader: React.FC<STLFileLoaderProps> = ({
         console.log('选择的文件:', file.name, file.size, file.type);
       }
       
-      // 这里应该调用实际的STL解析服务
-      // 目前使用模拟解析
-      const model = await parseSTLFile();
+      // 使用实际的STL解析服务
+      const model = await parseSTLFile(file);
       onModelLoad(model);
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : '未知错误';

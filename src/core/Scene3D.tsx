@@ -3,6 +3,10 @@ import * as THREE from 'three';
 
 /**
  * STL模型数据接口
+ * @interface STLModel
+ * @property {number[]} vertices - 顶点数据数组，每3个元素表示一个顶点的x,y,z坐标
+ * @property {number[]} normals - 法线数据数组，每3个元素表示一个法线的x,y,z分量
+ * @property {number[]} faces - 面索引数组，每3个元素表示一个三角形的顶点索引
  */
 interface STLModel {
   vertices: number[];
@@ -12,6 +16,14 @@ interface STLModel {
 
 /**
  * 3D场景配置接口
+ * @interface SceneConfig
+ * @property {number} [backgroundColor=0xf0f0f0] - 场景背景颜色，十六进制格式
+ * @property {number} [cubeColor=0x00ff00] - 默认立方体颜色，十六进制格式
+ * @property {number} [cubeSize=1] - 默认立方体尺寸
+ * @property {number} [cameraDistance=12.5] - 相机距离，默认对应缩放值50
+ * @property {number} [animationSpeed=0.01] - 动画速度，已取消自动旋转
+ * @property {STLModel | null} [model=null] - STL模型数据
+ * @property {boolean} [showDefaultCube=true] - 是否显示默认立方体
  */
 interface SceneConfig {
   backgroundColor?: number;
@@ -27,7 +39,31 @@ interface SceneConfig {
 
 /**
  * 3D场景组件
- * 基于Three.js的3D渲染场景
+ * 基于Three.js的3D渲染场景，支持STL模型加载和缩放功能
+ * 
+ * @component
+ * @param {SceneConfig} props - 场景配置参数
+ * @param {number} [props.backgroundColor=0xf0f0f0] - 场景背景颜色
+ * @param {number} [props.cubeColor=0x00ff00] - 默认立方体颜色
+ * @param {number} [props.cubeSize=1] - 默认立方体尺寸
+ * @param {number} [props.cameraDistance=12.5] - 相机距离，默认对应缩放值50
+ * @param {number} [props.animationSpeed=0.01] - 动画速度，已取消自动旋转
+ * @param {STLModel | null} [props.model=null] - STL模型数据
+ * @param {boolean} [props.showDefaultCube=true] - 是否显示默认立方体
+ * 
+ * @example
+ * ```tsx
+ * // 基本用法
+ * <Scene3D />
+ * 
+ * // 自定义配置
+ * <Scene3D 
+ *   backgroundColor={0x000000}
+ *   cameraDistance={15}
+ *   model={stlModelData}
+ *   showDefaultCube={false}
+ * />
+ * ```
  * 
  * 重构改进：
  * - 添加配置参数，提高组件可配置性
@@ -37,12 +73,14 @@ interface SceneConfig {
  * - 改进错误处理和资源清理
  * - 提取常量定义，提高代码可维护性
  * - 优化光照配置，提高渲染质量
+ * - 自动按比例显示模型，确保完整显示
+ * - 取消自动旋转，降低硬件要求
  */
 const Scene3D: React.FC<SceneConfig> = ({
   backgroundColor = 0xf0f0f0,
   cubeColor = 0x00ff00,
   cubeSize = 1,
-  cameraDistance = 5,
+  cameraDistance = 12.5, // 默认对应缩放值50
   animationSpeed = 0.01,
   model = null,
   showDefaultCube = true
@@ -60,6 +98,8 @@ const Scene3D: React.FC<SceneConfig> = ({
    */
   const initializeScene = useCallback(() => {
     if (!mountRef.current) return null;
+
+    console.log('Scene3D: 初始化场景，相机距离:', cameraDistance);
 
     // 场景初始化
     const scene = new THREE.Scene();
@@ -82,20 +122,53 @@ const Scene3D: React.FC<SceneConfig> = ({
 
     // 相机位置
     camera.position.z = cameraDistance;
+    camera.updateProjectionMatrix(); // 确保相机矩阵更新
 
     // 保存引用
     sceneRef.current = scene;
     cameraRef.current = camera;
     rendererRef.current = renderer;
 
+    // 初始渲染
+    renderer.render(scene, camera);
+
     return { scene, camera, renderer };
-  }, [backgroundColor, cubeColor, cubeSize, cameraDistance, showDefaultCube]);
+  }, [backgroundColor, cubeColor, cubeSize, showDefaultCube]); // 移除cameraDistance依赖
+
+  /**
+   * 计算适合模型大小的相机距离
+   */
+  const calculateOptimalCameraDistance = useCallback((geometry: THREE.BufferGeometry): number => {
+    if (!geometry.boundingBox) return 12.5; // 默认距离
+
+    const boxSize = new THREE.Vector3();
+    geometry.boundingBox.getSize(boxSize);
+    
+    // 计算模型的最大尺寸
+    const maxDimension = Math.max(boxSize.x, boxSize.y, boxSize.z);
+    console.log('Scene3D: 模型尺寸:', boxSize, '最大尺寸:', maxDimension);
+    
+    // 根据模型大小计算合适的相机距离
+    // 使用模型尺寸的2倍作为基础距离，确保模型完整显示
+    const baseDistance = maxDimension * 2;
+    
+    // 限制最小和最大距离
+    const minDistance = 5;
+    const maxDistance = 100;
+    
+    const optimalDistance = Math.max(minDistance, Math.min(maxDistance, baseDistance));
+    console.log('Scene3D: 计算出的最佳相机距离:', optimalDistance);
+    
+    return optimalDistance;
+  }, []);
 
   /**
    * 加载STL模型
    */
   const loadSTLModel = useCallback((modelData: STLModel) => {
     if (!sceneRef.current) return;
+
+    console.log('Scene3D: 加载STL模型，顶点数:', modelData.vertices.length / 3);
 
     // 清理现有模型
     if (modelRef.current) {
@@ -126,6 +199,11 @@ const Scene3D: React.FC<SceneConfig> = ({
     geometry.computeBoundingBox();
     geometry.computeBoundingSphere();
 
+    console.log('Scene3D: 模型边界框:', geometry.boundingBox);
+
+    // 计算适合模型大小的相机距离
+    const optimalDistance = calculateOptimalCameraDistance(geometry);
+
     // 创建材质和网格
     const material = new THREE.MeshPhongMaterial({ 
       color: 0x2196f3,
@@ -140,7 +218,9 @@ const Scene3D: React.FC<SceneConfig> = ({
     // 调整模型位置到场景中心
     if (geometry.boundingBox) {
       const center = geometry.boundingBox.getCenter(new THREE.Vector3());
-      mesh.position.sub(center);
+      console.log('Scene3D: 模型中心位置:', center);
+      // 将模型移动到场景中心，确保在相机视野内
+      mesh.position.set(-center.x, -center.y, -center.z);
     }
 
     sceneRef.current.add(mesh);
@@ -155,7 +235,19 @@ const Scene3D: React.FC<SceneConfig> = ({
     directionalLight.position.set(1, 1, 1);
     sceneRef.current.add(directionalLight);
 
-  }, []);
+    // 更新相机距离以完整显示模型
+    if (cameraRef.current) {
+      cameraRef.current.position.z = optimalDistance;
+      cameraRef.current.updateProjectionMatrix();
+      console.log('Scene3D: 更新相机距离以完整显示模型:', optimalDistance);
+    }
+
+    // 强制重绘
+    if (sceneRef.current && cameraRef.current && rendererRef.current) {
+      rendererRef.current.render(sceneRef.current, cameraRef.current);
+    }
+
+  }, [calculateOptimalCameraDistance]);
 
   /**
    * 动画循环
@@ -163,20 +255,12 @@ const Scene3D: React.FC<SceneConfig> = ({
   const animate = useCallback(() => {
     if (!sceneRef.current || !cameraRef.current || !rendererRef.current) return;
 
-    // 旋转默认立方体
-    if (cubeRef.current && showDefaultCube) {
-      cubeRef.current.rotation.x += animationSpeed;
-      cubeRef.current.rotation.y += animationSpeed;
-    }
-
-    // 旋转STL模型
-    if (modelRef.current) {
-      modelRef.current.rotation.y += animationSpeed * 0.5;
-    }
+    // 取消自动旋转以降低硬件要求
+    // 如果需要旋转，可以通过用户交互控制
     
     rendererRef.current.render(sceneRef.current, cameraRef.current);
     animationIdRef.current = requestAnimationFrame(animate);
-  }, [animationSpeed, showDefaultCube]);
+  }, []);
 
   /**
    * 处理窗口大小变化
@@ -232,7 +316,13 @@ const Scene3D: React.FC<SceneConfig> = ({
    */
   useEffect(() => {
     if (cameraRef.current) {
+      console.log('Scene3D: 更新相机距离:', cameraDistance);
       cameraRef.current.position.z = cameraDistance;
+      cameraRef.current.updateProjectionMatrix(); // 确保相机矩阵更新
+      // 强制重绘以显示缩放效果
+      if (sceneRef.current && cameraRef.current && rendererRef.current) {
+        rendererRef.current.render(sceneRef.current, cameraRef.current);
+      }
     }
   }, [cameraDistance]);
 

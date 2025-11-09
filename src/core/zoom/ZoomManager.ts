@@ -81,16 +81,17 @@ export const createZoomManager = (initialState?: Partial<ZoomState>): ZoomManage
  * 将UI缩放值(0-100)转换为3D场景相机距离
  * @function zoomValueToCameraDistance
  * @param {number} zoomValue - UI缩放值，范围0-100
- * @returns {number} 3D场景相机距离，范围2-10
+ * @returns {number} 3D场景相机距离，范围2-50
  * @example
  * ```typescript
- * const distance = zoomValueToCameraDistance(50); // 返回6
+ * const distance = zoomValueToCameraDistance(50); // 返回26
  * ```
  */
 export const zoomValueToCameraDistance = (zoomValue: number): number => {
-  // 缩放值0对应最远距离(10)，缩放值100对应最近距离(2)
+  // 缩放值0对应最远距离(50)，缩放值100对应最近距离(2)
+  // 扩大距离范围以适应大型心脏模型，让缩放效果更明显
   const minDistance = 2;
-  const maxDistance = 10;
+  const maxDistance = 50;
   return maxDistance - (zoomValue / 100) * (maxDistance - minDistance);
 };
 
@@ -98,15 +99,15 @@ export const zoomValueToCameraDistance = (zoomValue: number): number => {
  * 缩放值转换工具
  * 将3D场景相机距离转换为UI缩放值(0-100)
  * @function cameraDistanceToZoomValue
- * @param {number} distance - 3D场景相机距离，范围2-10
+ * @param {number} distance - 3D场景相机距离，范围2-50
  * @returns {number} UI缩放值，范围0-100
  * @example
  * ```typescript
- * const zoomValue = cameraDistanceToZoomValue(6); // 返回50
+ * const zoomValue = cameraDistanceToZoomValue(26); // 返回50
  * ```
  */
 export const cameraDistanceToZoomValue = (distance: number): number => {
   const minDistance = 2;
-  const maxDistance = 10;
+  const maxDistance = 50;
   return ((maxDistance - distance) / (maxDistance - minDistance)) * 100;
 };
