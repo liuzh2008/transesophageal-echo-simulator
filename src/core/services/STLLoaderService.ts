@@ -7,7 +7,7 @@ import { STLLoader } from 'three-stdlib';
  */
 export class STLLoaderService {
   private stlLoader: STLLoader;
-  private readonly maxFileSize = 100 * 1024 * 1024; // 100MB
+  private readonly maxFileSize = 250 * 1024 * 1024; // 250MB
 
   constructor() {
     this.stlLoader = new STLLoader();
