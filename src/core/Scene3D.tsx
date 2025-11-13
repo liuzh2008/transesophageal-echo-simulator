@@ -101,7 +101,7 @@ const Scene3D: React.FC<SceneConfig> = ({
   const rendererRef = useRef<THREE.WebGLRenderer | null>(null);
   const cubeRef = useRef<THREE.Mesh | null>(null);
   const modelRef = useRef<THREE.Mesh | null>(null);
-  const sectionLinesRef = useRef<THREE.Line[]>([]);
+  const sectionLinesRef = useRef<THREE.Mesh[]>([]);
   const animationIdRef = useRef<number | null>(null);
 
   /**
@@ -204,21 +204,28 @@ const Scene3D: React.FC<SceneConfig> = ({
         new THREE.Vector3(point.x, point.y, point.z)
       );
 
-      // 创建几何体
-      const geometry = new THREE.BufferGeometry().setFromPoints(points);
+      // 使用TubeGeometry实现可调节线宽
+      // 线宽映射：1-10像素映射到0.01-0.1的半径
+      const tubeRadius = sectionConfig.lineWidth * 0.01;
+      const tubeGeometry = new THREE.TubeGeometry(
+        new THREE.CatmullRomCurve3(points),
+        20, // 分段数
+        tubeRadius, // 半径，控制线宽
+        8, // 径向分段数
+        false // 是否闭合
+      );
 
       // 创建材质 - 高亮时使用黄色，否则使用配置的颜色
-      const material = new THREE.LineBasicMaterial({
+      const material = new THREE.MeshBasicMaterial({
         color: sectionConfig.highlight ? '#ffff00' : sectionConfig.color,
-        linewidth: sectionConfig.lineWidth,
         transparent: true,
         opacity: sectionConfig.opacity
       });
 
-      // 创建线条
-      const line = new THREE.Line(geometry, material);
-      sceneRef.current?.add(line);
-      sectionLinesRef.current.push(line);
+      // 创建管状网格（替代线条）
+      const tube = new THREE.Mesh(tubeGeometry, material);
+      sceneRef.current?.add(tube);
+      sectionLinesRef.current.push(tube);
     });
 
     console.log('Scene3D: 切面轮廓渲染完成，线条数:', sectionLinesRef.current.length);
