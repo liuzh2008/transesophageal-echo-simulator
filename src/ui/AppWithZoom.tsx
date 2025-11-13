@@ -6,7 +6,9 @@ import Button from './components/Button';
 import Slider from './components/Slider';
 import ThemeProvider from './components/ThemeProvider';
 import STLFileLoader, { STLModel } from './components/STLFileLoader';
+import SectionControls from './components/SectionControls';
 import { ZoomProvider, useZoomControls, useZoomState } from '../core/zoom/ZoomContext';
+import { VisualizationConfig } from '../core/algorithms/services/SectionVisualizationService';
 
 /**
  * STL文件加载组件
@@ -141,6 +143,7 @@ const SceneWithZoom: React.FC<SceneWithZoomProps> = ({ model }) => {
  */
 const AppWithZoom: React.FC = () => {
   const [currentModel, setCurrentModel] = useState<STLModel | null>(null);
+  const [sectionConfig, setSectionConfig] = useState<VisualizationConfig | null>(null);
 
   /**
    * 处理STL模型加载
@@ -148,6 +151,14 @@ const AppWithZoom: React.FC = () => {
   const handleModelLoad = (model: STLModel) => {
     console.log('AppWithZoom: STL模型加载完成:', model);
     setCurrentModel(model);
+  };
+
+  /**
+   * 处理切面配置变化
+   */
+  const handleSectionConfigChange = (config: VisualizationConfig) => {
+    console.log('切面配置更新:', config);
+    setSectionConfig(config);
   };
 
   return (
@@ -164,6 +175,7 @@ const AppWithZoom: React.FC = () => {
                 <SceneWithZoom model={currentModel} />
                 <div className="controls-container">
                   <STLFileLoaderComponent onModelLoad={handleModelLoad} />
+                  <SectionControls onConfigChange={handleSectionConfigChange} />
                   <ZoomControls />
                 </div>
               </div>
