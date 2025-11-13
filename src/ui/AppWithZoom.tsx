@@ -7,6 +7,7 @@ import Slider from './components/Slider';
 import ThemeProvider from './components/ThemeProvider';
 import STLFileLoader, { STLModel } from './components/STLFileLoader';
 import SectionControls from './components/SectionControls';
+import TabContainer from './components/TabContainer';
 import { ZoomProvider, useZoomControls, useZoomState } from '../core/zoom/ZoomContext';
 import { VisualizationConfig } from '../core/algorithms/services/SectionVisualizationService';
 
@@ -161,6 +162,37 @@ const AppWithZoom: React.FC = () => {
     setSectionConfig(config);
   };
 
+  // 定义标签页
+  const tabs = [
+    {
+      id: 'stl-loader',
+      label: 'STL文件加载',
+      content: (
+        <div className="controls-section">
+          <STLFileLoaderComponent onModelLoad={handleModelLoad} />
+        </div>
+      )
+    },
+    {
+      id: 'section-controls',
+      label: '切面可视化控制',
+      content: (
+        <div className="controls-section">
+          <SectionControls onConfigChange={handleSectionConfigChange} />
+        </div>
+      )
+    },
+    {
+      id: 'scene-controls',
+      label: '场景控制',
+      content: (
+        <div className="controls-section">
+          <ZoomControls />
+        </div>
+      )
+    }
+  ];
+
   return (
     <ZoomProvider>
       <ThemeProvider>
@@ -174,9 +206,7 @@ const AppWithZoom: React.FC = () => {
               <div className="app-content">
                 <SceneWithZoom model={currentModel} />
                 <div className="controls-container">
-                  <STLFileLoaderComponent onModelLoad={handleModelLoad} />
-                  <SectionControls onConfigChange={handleSectionConfigChange} />
-                  <ZoomControls />
+                  <TabContainer tabs={tabs} defaultTab="stl-loader" />
                 </div>
               </div>
             </main>
