@@ -1,5 +1,7 @@
 import React, { useRef, useEffect, useCallback } from 'react';
 import * as THREE from 'three';
+import { VisualizationConfig } from './algorithms/services/SectionVisualizationService';
+import { Vector3 } from './algorithms/geometry/index';
 
 /**
  * STL模型数据接口
@@ -24,6 +26,8 @@ interface STLModel {
  * @property {number} [animationSpeed=0.01] - 动画速度，已取消自动旋转
  * @property {STLModel | null} [model=null] - STL模型数据
  * @property {boolean} [showDefaultCube=true] - 是否显示默认立方体
+ * @property {Vector3[][]} [sectionLines=[]] - 切面交线数据
+ * @property {VisualizationConfig | null} [sectionConfig=null] - 切面可视化配置
  */
 interface SceneConfig {
   backgroundColor?: number;
@@ -35,6 +39,10 @@ interface SceneConfig {
   model?: STLModel | null;
   /** 是否显示默认立方体 */
   showDefaultCube?: boolean;
+  /** 切面交线数据 */
+  sectionLines?: Vector3[][];
+  /** 切面可视化配置 */
+  sectionConfig?: VisualizationConfig | null;
 }
 
 /**
@@ -83,7 +91,9 @@ const Scene3D: React.FC<SceneConfig> = ({
   cameraDistance = 12.5, // 默认对应缩放值50
   animationSpeed = 0.01,
   model = null,
-  showDefaultCube = true
+  showDefaultCube = true,
+  sectionLines = [],
+  sectionConfig = null
 }) => {
   const mountRef = useRef<HTMLDivElement>(null);
   const sceneRef = useRef<THREE.Scene | null>(null);
@@ -91,6 +101,7 @@ const Scene3D: React.FC<SceneConfig> = ({
   const rendererRef = useRef<THREE.WebGLRenderer | null>(null);
   const cubeRef = useRef<THREE.Mesh | null>(null);
   const modelRef = useRef<THREE.Mesh | null>(null);
+  const sectionLinesRef = useRef<THREE.Line[]>([]);
   const animationIdRef = useRef<number | null>(null);
 
   /**
@@ -161,6 +172,62 @@ const Scene3D: React.FC<SceneConfig> = ({
     
     return optimalDistance;
   }, []);
+
+  /**
+   * 渲染切面轮廓
+   */
+  const renderSectionLines = useCallback(() => {
+    if (!sceneRef.current) return;
+
+    console.log('Scene3D: 渲染切面轮廓，线条数:', sectionLines.length);
+
+    // 清理现有切面线条
+    sectionLinesRef.current.forEach(line => {
+      sceneRef.current?.remove(line);
+    });
+    sectionLinesRef.current = [];
+
+    // 如果没有切面配置或不可见，直接返回
+    if (!sectionConfig || !sectionConfig.visible || sectionLines.length === 0) {
+      console.log('Scene3D: 切面不可见或无数据，跳过渲染');
+      return;
+    }
+
+    console.log('Scene3D: 切面配置:', sectionConfig);
+
+    // 渲染每条切面交线
+    sectionLines.forEach((linePoints, index) => {
+      if (linePoints.length < 2) return;
+
+      // 将Vector3转换为Three.js向量
+      const points = linePoints.map(point => 
+        new THREE.Vector3(point.x, point.y, point.z)
+      );
+
+      // 创建几何体
+      const geometry = new THREE.BufferGeometry().setFromPoints(points);
+
+      // 创建材质 - 高亮时使用黄色，否则使用配置的颜色
+      const material = new THREE.LineBasicMaterial({
+        color: sectionConfig.highlight ? '#ffff00' : sectionConfig.color,
+        linewidth: sectionConfig.lineWidth,
+        transparent: true,
+        opacity: sectionConfig.opacity
+      });
+
+      // 创建线条
+      const line = new THREE.Line(geometry, material);
+      sceneRef.current?.add(line);
+      sectionLinesRef.current.push(line);
+    });
+
+    console.log('Scene3D: 切面轮廓渲染完成，线条数:', sectionLinesRef.current.length);
+
+    // 强制重绘
+    if (sceneRef.current && cameraRef.current && rendererRef.current) {
+      rendererRef.current.render(sceneRef.current, cameraRef.current);
+    }
+  }, [sectionLines, sectionConfig]);
 
   /**
    * 加载STL模型
@@ -338,6 +405,13 @@ const Scene3D: React.FC<SceneConfig> = ({
       modelRef.current = null;
     }
   }, [model, loadSTLModel]);
+
+  /**
+   * 响应切面数据和配置变化
+   */
+  useEffect(() => {
+    renderSectionLines();
+  }, [renderSectionLines]);
 
   return (
     <div 

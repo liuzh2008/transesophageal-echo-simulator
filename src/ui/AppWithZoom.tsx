@@ -10,6 +10,7 @@ import SectionControls from './components/SectionControls';
 import TabContainer from './components/TabContainer';
 import { ZoomProvider, useZoomControls, useZoomState } from '../core/zoom/ZoomContext';
 import { VisualizationConfig } from '../core/algorithms/services/SectionVisualizationService';
+import { Vector3 } from '../core/algorithms/geometry/index';
 
 /**
  * STL文件加载组件
@@ -105,9 +106,10 @@ const ZoomControls: React.FC = () => {
  */
 interface SceneWithZoomProps {
   model?: STLModel | null;
+  sectionConfig?: VisualizationConfig | null;
 }
 
-const SceneWithZoom: React.FC<SceneWithZoomProps> = ({ model }) => {
+const SceneWithZoom: React.FC<SceneWithZoomProps> = ({ model, sectionConfig }) => {
   const { getCameraDistance } = useZoomControls();
   const zoomState = useZoomState();
 
@@ -118,6 +120,22 @@ const SceneWithZoom: React.FC<SceneWithZoomProps> = ({ model }) => {
     return distance;
   }, [getCameraDistance, zoomState.value]);
 
+  // 模拟切面交线数据 - 这里应该从实际的切面计算算法获取
+  const mockSectionLines: Vector3[][] = [
+    [
+      new Vector3(-1, 0, 0),
+      new Vector3(1, 0, 0)
+    ],
+    [
+      new Vector3(0, -1, 0),
+      new Vector3(0, 1, 0)
+    ],
+    [
+      new Vector3(0, 0, -1),
+      new Vector3(0, 0, 1)
+    ]
+  ];
+
   return (
     <div className="scene-section">
       <Panel title="3D场景视图" className="scene-panel">
@@ -126,6 +144,8 @@ const SceneWithZoom: React.FC<SceneWithZoomProps> = ({ model }) => {
             cameraDistance={cameraDistance} 
             model={model}
             showDefaultCube={!model} // 有模型时不显示默认立方体
+            sectionLines={mockSectionLines}
+            sectionConfig={sectionConfig}
           />
         </div>
       </Panel>
@@ -204,7 +224,7 @@ const AppWithZoom: React.FC = () => {
             </header>
             <main className="app-main">
               <div className="app-content">
-                <SceneWithZoom model={currentModel} />
+                <SceneWithZoom model={currentModel} sectionConfig={sectionConfig} />
                 <div className="controls-container">
                   <TabContainer tabs={tabs} defaultTab="stl-loader" />
                 </div>
