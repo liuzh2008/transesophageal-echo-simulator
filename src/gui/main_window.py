@@ -116,8 +116,8 @@ class MainWindow(QMainWindow):
         images_h_splitter.addWidget(view_3d_widget)
         images_h_splitter.addWidget(view_2d_widget)
         
-        # 设置图像水平分割比例（60%:40%）
-        images_h_splitter.setSizes([720, 480])  # 总宽度1200px
+        # 设置图像水平分割比例（50%:50%）
+        images_h_splitter.setSizes([600, 600])  # 总宽度1200px
         
         # 创建底部控制面板（患者信息+视图选项）
         self._create_bottom_panel(bottom_widget, bottom_layout)
