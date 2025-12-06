@@ -407,6 +407,56 @@ class VolumeRenderer:
         )
         return center
     
+    def get_vtk_image_data(self) -> Optional[vtk.vtkImageData]:
+        """
+        获取VTK图像数据
+        
+        功能说明:
+            将内部的numpy体积数据转换为VTK图像数据格式，用于2D切片显示和其他VTK操作。
+            此方法提供了从numpy数组到VTK图像数据的桥梁，支持2D截面显示功能。
+        
+        请求参数:
+            无
+        
+        响应格式:
+            vtk.vtkImageData 或 None - 转换后的VTK图像数据，如果转换失败则返回None
+        
+        逻辑:
+            1. 检查VTK可用性和体积数据是否存在
+            2. 调用内部方法_numpy_to_vtk_image进行数据转换
+            3. 设置图像的间距和原点信息
+            4. 返回转换后的VTK图像数据
+        
+        响应示例:
+            >>> renderer = VolumeRenderer()
+            >>> renderer.set_volume_data(np.random.rand(256, 256, 256))
+            >>> vtk_image = renderer.get_vtk_image_data()
+            >>> print(vtk_image.GetDimensions())
+            (256, 256, 256)
+        
+        相关文件:
+            src/core/volume_render.py
+            src/gui/cross_section_window.py
+            src/gui/vtk_manager.py
+        
+        注意事项:
+            - 此方法依赖于VTK库，如果VTK不可用则返回None
+            - 返回的图像数据包含原始体积数据的完整信息，包括间距和原点
+            - 主要用于2D切片显示功能，也可用于其他需要VTK图像数据的操作
+        """
+        if not VTK_AVAILABLE or self.volume_data is None:
+            return None
+        
+        try:
+            # 将numpy数组转换为VTK图像数据
+            vtk_image = self._numpy_to_vtk_image(self.volume_data)
+            vtk_image.SetSpacing(self.spacing)
+            vtk_image.SetOrigin(self.origin)
+            return vtk_image
+        except Exception as e:
+            warnings.warn(f"获取VTK图像数据失败: {e}")
+            return None
+    
     def update_opacity(self, opacity_value: float):
         """更新体积透明度
         
@@ -480,27 +530,31 @@ class VolumeRenderer:
             warnings.warn(f"更新透明度失败: {e}")
     
     def create_cut_plane(self, position_percent: float = 0.5, 
-                        normal: Tuple[float, float, float] = (0, 0, 1)) -> Tuple[Optional[vtk.vtkActor], Optional[vtk.vtkActor]]:
+                        normal: Tuple[float, float, float] = (0, 0, 1),
+                        return_data: bool = False) -> Tuple[Optional[vtk.vtkActor], Optional[vtk.vtkActor], Optional[vtk.vtkPolyData]]:
         """创建切割平面（红色线条+浅红色填充）
         
         参数:
             position_percent: 切割位置百分比 (0.0-1.0)，0.5表示50%位置
             normal: 平面法线向量，默认垂直于Z轴
+            return_data: 是否返回切割数据（vtkPolyData）
             
         返回:
-            (cut_actor, fill_actor) - 红色线条Actor和浅红色填充Actor
+            如果return_data为False: (cut_actor, fill_actor) - 红色线条Actor和浅红色填充Actor
+            如果return_data为True: (cut_actor, fill_actor, cut_polydata) - 包含切割数据
         """
         print(f"\n[DEBUG] 开始创建切割平面...")
         print(f"[DEBUG] VTK_AVAILABLE: {VTK_AVAILABLE}")
         print(f"[DEBUG] volume_data is None: {self.volume_data is None}")
+        print(f"[DEBUG] return_data: {return_data}")
         
         if not VTK_AVAILABLE:
             print("[DEBUG] VTK不可用")
-            return None, None
+            return (None, None) if not return_data else (None, None, None)
         
         if self.volume_data is None:
             print("[DEBUG] 体积数据为空")
-            return None, None
+            return (None, None) if not return_data else (None, None, None)
         
         try:
             # 将numpy数组转换为VTK图像数据
@@ -564,7 +618,7 @@ class VolumeRenderer:
             if num_points == 0:
                 print("[DEBUG] 警告: 切割平面未产生任何几何体")
                 print("[DEBUG] 可能原因: 平面位置在体积外部，或体积数据为空")
-                return None, None
+                return (None, None) if not return_data else (None, None, None)
             
             # 创建红色线条切割Actor（轮廓线）
             cut_mapper = vtk.vtkPolyDataMapper()
@@ -624,13 +678,17 @@ class VolumeRenderer:
                 # 如果创建填充平面失败，只返回线条Actor
             
             print(f"[DEBUG] 切割平面创建完成")
-            return cut_actor, fill_actor
+            
+            if return_data:
+                return cut_actor, fill_actor, cut_polydata
+            else:
+                return cut_actor, fill_actor
             
         except Exception as e:
             print(f"[DEBUG] 创建切割平面失败: {e}")
             import traceback
             traceback.print_exc()
-            return None, None
+            return (None, None) if not return_data else (None, None, None)
     
     def clear(self):
         """清除所有VTK对象"""

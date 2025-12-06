@@ -118,14 +118,15 @@ class EventHandlers:
             QMessageBox.warning(self.main_window, "警告", "请先加载DICOM数据以显示切割平面")
             return
         
-        # 显示切割平面
+        # 显示切割平面（同时显示2D截面窗口）
         success = self.vtk_manager.show_cut_plane(
             position_percent=0.5,  # 50%位置
-            normal=(0, 0, 1)       # 垂直于Z轴
+            normal=(0, 0, 1),      # 垂直于Z轴
+            show_2d_window=True    # 显示2D截面窗口
         )
         
         if success:
-            self.main_window.statusBar().showMessage("切割平面显示成功（50%位置，红色线条+浅红色填充）", 5000)
+            self.main_window.statusBar().showMessage("切割平面显示成功（50%位置，红色线条+浅红色填充），2D截面窗口已打开", 5000)
         else:
             self.main_window.statusBar().showMessage("切割平面显示失败", 3000)
             QMessageBox.warning(self.main_window, "警告", "切割平面显示失败，请检查数据")

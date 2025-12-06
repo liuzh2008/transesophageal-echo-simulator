@@ -236,12 +236,13 @@ class VTKManager:
         self.renderer.ResetCamera()
         self.vtk_widget.GetRenderWindow().Render()
     
-    def show_cut_plane(self, position_percent=0.5, normal=(0, 0, 1)):
+    def show_cut_plane(self, position_percent=0.5, normal=(0, 0, 1), show_2d_window=True):
         """显示切割平面（红色线条+浅红色填充）
         
         参数:
             position_percent: 切割位置百分比 (0.0-1.0)，0.5表示50%位置
             normal: 平面法线向量，默认垂直于Z轴
+            show_2d_window: 是否显示2D切片窗口
         """
         if not VTK_AVAILABLE or self.renderer is None:
             return False
@@ -252,10 +253,11 @@ class VTKManager:
             # 获取体积渲染器
             volume_renderer = get_volume_renderer()
             
-            # 创建切割平面
-            cut_actor, fill_actor = volume_renderer.create_cut_plane(
+            # 创建切割平面（获取切割数据）
+            cut_actor, fill_actor, cut_polydata = volume_renderer.create_cut_plane(
                 position_percent=position_percent, 
-                normal=normal
+                normal=normal,
+                return_data=True  # 获取切割数据用于2D窗口
             )
             
             if cut_actor is not None:
@@ -268,6 +270,11 @@ class VTKManager:
                 
                 # 重新渲染
                 self.vtk_widget.GetRenderWindow().Render()
+                
+                # 显示2D切片窗口（如果启用）
+                if show_2d_window:
+                    self.show_cross_section_window(position_percent, normal)
+                
                 return True
             else:
                 print("警告: 无法创建切割平面")
@@ -278,6 +285,89 @@ class VTKManager:
             import traceback
             traceback.print_exc()
             return False
+    
+    def show_cross_section_window(self, cut_position, normal_vector=None):
+        """
+        显示2D切片窗口（垂直于切割平面的2D切片图像）
+        
+        功能说明:
+            创建并显示一个独立的2D切片窗口，显示垂直于切割平面的DICOM切片图像。
+            此方法严格按照示例代码中的实现方式，使用vtkImageReslice提取2D切片。
+        
+        请求参数:
+            cut_position: float - 切割位置（百分比），0.0-1.0之间，0.5表示50%位置
+            normal_vector: tuple (可选) - 平面法线向量 (nx, ny, nz)，默认(0, 0, 1)垂直于Z轴
+        
+        响应格式:
+            CrossSectionWindow 或 None - 创建的2D切片窗口实例，如果创建失败则返回None
+        
+        逻辑:
+            1. 检查VTK可用性
+            2. 从volume_renderer获取VTK图像数据
+            3. 调用cross_section_window.create_cross_section_window创建窗口
+            4. 保存窗口引用避免被垃圾回收
+            5. 返回窗口实例
+        
+        响应示例:
+            >>> vtk_manager = VTKManager()
+            >>> window = vtk_manager.show_cross_section_window(0.5, (0, 0, 1))
+            >>> print(window.windowTitle())
+            "2D切片视图 - 法线: (0, 0, 1)"
+        
+        相关文件:
+            src/gui/vtk_manager.py
+            src/gui/cross_section_window.py
+            src/core/volume_render.py
+        
+        注意事项:
+            - 此方法依赖于VTK库和volume_renderer模块
+            - 窗口作为独立窗口显示，支持多个切片窗口同时查看
+            - 使用正交投影相机，保持图像比例不变
+            - 自动调整颜色窗口/级别以适应医学图像显示
+        """
+        if not VTK_AVAILABLE:
+            print("警告: VTK不可用，无法显示2D切片窗口")
+            return None
+        
+        try:
+            # 从volume_renderer获取vtkImageData
+            from core.volume_render import get_volume_renderer
+            volume_renderer = get_volume_renderer()
+            
+            # 获取VTK图像数据
+            vtk_image_data = volume_renderer.get_vtk_image_data()
+            
+            if vtk_image_data is None:
+                print("警告: 无法获取VTK图像数据，2D切片窗口无法显示")
+                return None
+            
+            # 导入2D切片窗口模块
+            from .cross_section_window import create_cross_section_window
+            
+            # 创建并显示2D切片窗口
+            window = create_cross_section_window(
+                image_data=vtk_image_data,
+                normal_vector=normal_vector if normal_vector is not None else (0, 0, 1),
+                cut_position=cut_position,
+                parent=self.parent_widget
+            )
+            
+            # 保存窗口引用，避免被垃圾回收
+            if not hasattr(self, '_cross_section_windows'):
+                self._cross_section_windows = []
+            self._cross_section_windows.append(window)
+            
+            print(f"[DEBUG] 2D切片窗口已创建并显示，窗口总数: {len(self._cross_section_windows)}")
+            return window
+            
+        except ImportError as e:
+            print(f"警告: 无法导入cross_section_window模块: {e}")
+            return None
+        except Exception as e:
+            warnings.warn(f"显示2D切片窗口失败: {e}")
+            import traceback
+            traceback.print_exc()
+            return None
     
     def is_available(self):
         """检查VTK是否可用"""
