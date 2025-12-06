@@ -22,40 +22,6 @@ class EventHandlers:
         """设置UI组件引用"""
         self.ui_components = ui_components
     
-    def handle_open_file(self):
-        """处理打开文件事件"""
-        file_path, _ = QFileDialog.getOpenFileName(
-            self.main_window,
-            "打开DICOM文件",
-            "",
-            "DICOM文件 (*.dcm *.dicom);;所有文件 (*.*)"
-        )
-        
-        if file_path:
-            self.main_window.statusBar().showMessage(f"正在加载: {file_path}", 3000)
-            
-            # 加载DICOM文件
-            success = self.dicom_manager.load_file(file_path)
-            
-            if success:
-                # 更新患者信息显示
-                patient_info = self.dicom_manager.get_patient_info()
-                self._update_patient_info(patient_info)
-                
-                # 获取图像数据
-                image_data = self.dicom_manager.get_image_data()
-                
-                if image_data is not None:
-                    # 更新3D视图
-                    self.vtk_manager.set_volume_data(image_data)
-                    
-                    self.main_window.statusBar().showMessage(
-                        f"成功加载DICOM文件: {file_path.split('/')[-1]}", 5000)
-                else:
-                    self.main_window.statusBar().showMessage(
-                        "加载DICOM文件失败: 无图像数据", 5000)
-            else:
-                self.main_window.statusBar().showMessage("加载DICOM文件失败", 5000)
     
     def handle_open_directory(self):
         """处理打开文件夹事件"""

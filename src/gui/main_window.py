@@ -147,10 +147,6 @@ class MainWindow(QMainWindow):
         self.event_handlers.set_ui_components(self.ui_components)
         
         # 连接菜单动作
-        if 'open_action' in self.ui_components:
-            self.ui_components['open_action'].triggered.connect(
-                self.event_handlers.handle_open_file)
-        
         if 'open_dir_action' in self.ui_components:
             self.ui_components['open_dir_action'].triggered.connect(
                 self.event_handlers.handle_open_directory)
@@ -168,10 +164,6 @@ class MainWindow(QMainWindow):
                 self.event_handlers.handle_show_about)
         
         # 连接工具栏动作
-        if 'open_action' in self.ui_components:
-            # 注意：这里可能和菜单动作是同一个对象，需要检查
-            pass
-        
         if 'view_3d_action' in self.ui_components:
             # 注意：这里可能和菜单动作是同一个对象，需要检查
             pass

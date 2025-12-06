@@ -203,15 +203,30 @@ class VTKManager:
         
         opacity = opacity_value / 100.0
         
-        # 更新所有演员的透明度
-        actors = self.renderer.GetActors()
-        actors.InitTraversal()
-        actor = actors.GetNextItem()
-        while actor:
-            actor.GetProperty().SetOpacity(opacity)
+        try:
+            from core.volume_render import get_volume_renderer
+            
+            # 获取体积渲染器
+            volume_renderer = get_volume_renderer()
+            
+            # 更新体积演员的透明度（如果存在）
+            if volume_renderer.volume is not None:
+                volume_renderer.update_opacity(opacity)
+            
+            # 更新所有普通演员的透明度
+            actors = self.renderer.GetActors()
+            actors.InitTraversal()
             actor = actors.GetNextItem()
-        
-        self.vtk_widget.GetRenderWindow().Render()
+            while actor:
+                # 检查是否为普通演员（不是体积演员）
+                if not isinstance(actor, vtk.vtkVolume):
+                    actor.GetProperty().SetOpacity(opacity)
+                actor = actors.GetNextItem()
+            
+            self.vtk_widget.GetRenderWindow().Render()
+            
+        except Exception as e:
+            warnings.warn(f"更改透明度失败: {e}")
     
     def reset_camera(self):
         """重置相机"""

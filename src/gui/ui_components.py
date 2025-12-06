@@ -29,7 +29,6 @@ class UIComponents:
         @returns {tuple} (menubar, actions_dict) - 菜单栏和动作字典
         @returns {QMenuBar} menubar - 创建的菜单栏
         @returns {dict} actions_dict - 包含所有菜单动作的字典
-            - open_action: 打开文件动作
             - open_dir_action: 打开文件夹动作
             - exit_action: 退出动作
             - view_3d_action: 3D视图切换动作
@@ -40,13 +39,7 @@ class UIComponents:
         # 文件菜单
         file_menu = menubar.addMenu("文件(&F)")
         
-        # 打开文件动作
-        open_action = QAction("打开DICOM文件(&O)...", parent)
-        open_action.setShortcut("Ctrl+O")
-        open_action.setStatusTip("打开单个DICOM影像文件")
-        file_menu.addAction(open_action)
-        
-        # 打开文件夹动作
+        # 打开文件夹动作（仅保留文件夹导入功能）
         open_dir_action = QAction("打开DICOM文件夹(&D)...", parent)
         open_dir_action.setShortcut("Ctrl+D")
         open_dir_action.setStatusTip("打开包含DICOM文件的文件夹")
@@ -79,7 +72,6 @@ class UIComponents:
         help_menu.addAction(about_action)
         
         return menubar, {
-            'open_action': open_action,
             'open_dir_action': open_dir_action,
             'exit_action': exit_action,
             'view_3d_action': view_3d_action,
@@ -95,19 +87,11 @@ class UIComponents:
         @returns {tuple} (toolbar, actions_dict) - 工具栏和动作字典
         @returns {QToolBar} toolbar - 创建的工具栏
         @returns {dict} actions_dict - 包含所有工具栏动作的字典
-            - open_action: 打开文件动作
             - view_3d_action: 3D视图切换动作
             - reset_action: 重置视图动作
         """
         toolbar = QToolBar("主工具栏", parent)
         toolbar.setIconSize(QSize(24, 24))
-        
-        # 打开文件按钮
-        open_action = QAction(QIcon(), "打开", parent)
-        open_action.setStatusTip("打开DICOM文件")
-        toolbar.addAction(open_action)
-        
-        toolbar.addSeparator()
         
         # 3D视图按钮
         view_3d_action = QAction(QIcon(), "3D视图", parent)
@@ -122,7 +106,6 @@ class UIComponents:
         toolbar.addAction(reset_action)
         
         return toolbar, {
-            'open_action': open_action,
             'view_3d_action': view_3d_action,
             'reset_action': reset_action
         }

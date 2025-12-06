@@ -407,6 +407,78 @@ class VolumeRenderer:
         )
         return center
     
+    def update_opacity(self, opacity_value: float):
+        """更新体积透明度
+        
+        参数:
+            opacity_value: 透明度值 (0.0-1.0)，0.0为完全透明，1.0为完全不透明
+            注意：对于体积渲染，完全透明(0.0)并不意味着完全不可见，
+            而是表示最低的不透明度水平
+        """
+        if not VTK_AVAILABLE or self.volume_property is None:
+            return
+        
+        try:
+            # 获取当前的不透明度传输函数
+            opacity_func = self.volume_property.GetScalarOpacity()
+            
+            # 确保opacity_value在合理范围内，避免完全不可见
+            # 设置最小不透明度为0.1，最大为1.0
+            adjusted_opacity = max(0.1, min(1.0, opacity_value))
+            
+            if opacity_func is None:
+                # 创建新的不透明度传输函数
+                opacity_func = vtk.vtkPiecewiseFunction()
+                # 基础不透明度函数 - 低密度区域透明，高密度区域不透明
+                # 使用非线性映射，确保即使透明度值低，高密度区域仍然可见
+                opacity_func.AddPoint(0.0, 0.0)
+                opacity_func.AddPoint(0.1, 0.0)
+                opacity_func.AddPoint(0.3, 0.3 * adjusted_opacity)
+                opacity_func.AddPoint(0.6, 0.6 * adjusted_opacity)
+                opacity_func.AddPoint(1.0, 1.0 * adjusted_opacity)
+                self.volume_property.SetScalarOpacity(opacity_func)
+            else:
+                # 对于体积渲染，使用更温和的缩放方式
+                # 获取当前函数的所有点
+                old_points = []
+                range_val = opacity_func.GetRange()
+                if range_val[0] == range_val[1]:
+                    range_val = (0.0, 1.0)
+                
+                # 采样关键点而不是所有点
+                sample_points = [0.0, 0.1, 0.3, 0.6, 1.0]
+                old_points = []
+                for x in sample_points:
+                    # 将采样点映射到实际范围
+                    mapped_x = range_val[0] + (range_val[1] - range_val[0]) * x
+                    y = opacity_func.GetValue(mapped_x)
+                    old_points.append((mapped_x, y))
+                
+                # 清除现有点并添加调整后的点
+                opacity_func.RemoveAllPoints()
+                for x, y in old_points:
+                    # 使用更温和的缩放：保留一定的基础不透明度
+                    # 当adjusted_opacity=0.1时，new_y = y * 0.3 + 0.05
+                    # 当adjusted_opacity=1.0时，new_y = y * 0.8 + 0.2
+                    scale_factor = 0.3 + 0.5 * adjusted_opacity  # 0.3到0.8之间
+                    base_opacity = 0.05 + 0.15 * adjusted_opacity  # 0.05到0.2之间
+                    new_y = y * scale_factor + base_opacity
+                    # 确保不透明度在0-1范围内
+                    new_y = max(0.0, min(1.0, new_y))
+                    opacity_func.AddPoint(x, new_y)
+            
+            # 设置整体不透明度乘数
+            self.volume_property.SetScalarOpacityUnitDistance(1.0)
+            
+            # 如果体积存在，触发重新渲染
+            if self.volume is not None:
+                self.volume.Modified()
+                # 强制重新渲染
+                self.volume.Update()
+                
+        except Exception as e:
+            warnings.warn(f"更新透明度失败: {e}")
+    
     def clear(self):
         """清除所有VTK对象"""
         self.volume_data = None
