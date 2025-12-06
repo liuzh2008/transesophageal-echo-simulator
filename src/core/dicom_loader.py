@@ -68,8 +68,22 @@ class DICOMLoader:
             dicom_files = []
             for root, _, files in os.walk(dir_path):
                 for file in files:
-                    if file.lower().endswith(('.dcm', '.dicom')):
-                        dicom_files.append(os.path.join(root, file))
+                    file_path = os.path.join(root, file)
+                    # 尝试所有文件，不仅仅是特定扩展名
+                    # 首先检查常见DICOM扩展名
+                    if file.lower().endswith(('.dcm', '.dicom', '.ima')):
+                        dicom_files.append(file_path)
+                    else:
+                        # 对于无扩展名文件，尝试读取前几个字节来判断是否为DICOM
+                        try:
+                            with open(file_path, 'rb') as f:
+                                # DICOM文件通常以"DICM"魔术字节开头
+                                f.seek(128)
+                                magic = f.read(4)
+                                if magic == b'DICM':
+                                    dicom_files.append(file_path)
+                        except:
+                            pass
             
             if not dicom_files:
                 warnings.warn(f"在目录中未找到DICOM文件: {dir_path}")
@@ -77,16 +91,20 @@ class DICOMLoader:
             
             # 加载所有文件
             self.datasets = []
+            successful_files = 0
             for file_path in dicom_files:
                 try:
                     dataset = pydicom.dcmread(file_path)
                     self.datasets.append(dataset)
+                    successful_files += 1
                 except Exception as e:
                     warnings.warn(f"加载文件失败 {file_path}: {e}")
             
             if not self.datasets:
                 warnings.warn("所有DICOM文件加载失败")
                 return False
+            
+            print(f"成功加载 {successful_files} 个DICOM文件")
             
             # 按位置排序（如果可能）
             self._sort_datasets()

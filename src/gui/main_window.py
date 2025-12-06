@@ -4,6 +4,7 @@
 此模块定义了应用程序的主窗口，包括菜单栏、工具栏、状态栏和主要视图布局。
 """
 
+import os
 from PyQt5.QtWidgets import (QMainWindow, QWidget, QVBoxLayout, QHBoxLayout,
                              QSplitter, QMenuBar, QMenu, QStatusBar,
                              QToolBar, QAction, QLabel, QFrame)
@@ -68,9 +69,16 @@ class MainWindow(QMainWindow):
         # 打开文件动作
         open_action = QAction("打开DICOM文件(&O)...", self)
         open_action.setShortcut("Ctrl+O")
-        open_action.setStatusTip("打开DICOM影像文件")
+        open_action.setStatusTip("打开单个DICOM影像文件")
         open_action.triggered.connect(self.open_dicom_file)
         file_menu.addAction(open_action)
+        
+        # 打开文件夹动作
+        open_dir_action = QAction("打开DICOM文件夹(&D)...", self)
+        open_dir_action.setShortcut("Ctrl+D")
+        open_dir_action.setStatusTip("打开包含DICOM文件的文件夹")
+        open_dir_action.triggered.connect(self.open_dicom_directory)
+        file_menu.addAction(open_dir_action)
         
         # 分隔线
         file_menu.addSeparator()
@@ -510,8 +518,39 @@ class MainWindow(QMainWindow):
         
         if file_path:
             self.statusBar().showMessage(f"正在加载: {file_path}", 3000)
-            # TODO: 实现DICOM加载逻辑
-            print(f"打开文件: {file_path}")
+            
+            try:
+                # 导入DICOM加载器
+                from core.dicom_loader import get_dicom_loader
+                
+                # 加载DICOM文件
+                dicom_loader = get_dicom_loader()
+                success = dicom_loader.load_file(file_path)
+                
+                if success:
+                    # 更新患者信息显示
+                    patient_info = dicom_loader.get_patient_info()
+                    self._update_patient_info(patient_info)
+                    
+                    # 获取图像数据
+                    image_data = dicom_loader.get_image_data()
+                    
+                    if image_data is not None:
+                        # 更新3D视图
+                        self._update_3d_view(image_data)
+                        
+                        # 更新多平面重建视图
+                        self._update_mpr_views(image_data)
+                        
+                        self.statusBar().showMessage(f"成功加载DICOM文件: {os.path.basename(file_path)}", 5000)
+                    else:
+                        self.statusBar().showMessage("加载DICOM文件失败: 无图像数据", 5000)
+                else:
+                    self.statusBar().showMessage("加载DICOM文件失败", 5000)
+                    
+            except Exception as e:
+                self.statusBar().showMessage(f"加载DICOM文件时出错: {str(e)}", 5000)
+                print(f"加载DICOM文件错误: {e}")
     
     def toggle_3d_view(self, checked):
         """切换3D视图显示"""
@@ -526,7 +565,44 @@ class MainWindow(QMainWindow):
     def toggle_ultrasound_fan(self, checked):
         """切换超声声窗显示"""
         self.statusBar().showMessage(f"超声声窗: {'显示' if checked else '隐藏'}", 2000)
-        # TODO: 实现声窗显示/隐藏逻辑
+        
+        # 实现声窗显示/隐藏逻辑
+        if VTK_AVAILABLE:
+            try:
+                from core.tee_simulator import get_tee_simulator
+                
+                tee_simulator = get_tee_simulator()
+                
+                if checked:
+                    # 创建或显示超声扇形
+                    if tee_simulator.ultrasound_fan_actor is None:
+                        tee_simulator.create_ultrasound_fan_actor()
+                    
+                    if tee_simulator.ultrasound_fan_actor is not None:
+                        # 确保超声扇形演员已添加到渲染器
+                        actors = self.renderer.GetActors()
+                        actors.InitTraversal()
+                        actor = actors.GetNextItem()
+                        fan_found = False
+                        
+                        while actor:
+                            if actor == tee_simulator.ultrasound_fan_actor:
+                                fan_found = True
+                                break
+                            actor = actors.GetNextItem()
+                        
+                        if not fan_found:
+                            self.renderer.AddActor(tee_simulator.ultrasound_fan_actor)
+                else:
+                    # 隐藏超声扇形
+                    if tee_simulator.ultrasound_fan_actor is not None:
+                        self.renderer.RemoveActor(tee_simulator.ultrasound_fan_actor)
+                
+                # 重新渲染
+                self.vtk_widget.GetRenderWindow().Render()
+                
+            except Exception as e:
+                print(f"切换超声声窗时出错: {e}")
     
     def update_probe_position(self):
         """更新探头位置"""
@@ -535,7 +611,53 @@ class MainWindow(QMainWindow):
         z = self.z_slider.value()
         
         self.statusBar().showMessage(f"探头位置: X={x}, Y={y}, Z={z}", 1000)
-        # TODO: 更新3D视图中的探头位置
+        
+        # 更新3D视图中的探头位置
+        if VTK_AVAILABLE:
+            try:
+                from core.tee_simulator import get_tee_simulator
+                
+                tee_simulator = get_tee_simulator()
+                tee_simulator.set_probe_position((x, y, z))
+                
+                # 更新探头可视化
+                if tee_simulator.probe_actor is not None:
+                    # 确保探头演员已添加到渲染器
+                    actors = self.renderer.GetActors()
+                    actors.InitTraversal()
+                    actor = actors.GetNextItem()
+                    probe_found = False
+                    
+                    while actor:
+                        if actor == tee_simulator.probe_actor:
+                            probe_found = True
+                            break
+                        actor = actors.GetNextItem()
+                    
+                    if not probe_found:
+                        self.renderer.AddActor(tee_simulator.probe_actor)
+                
+                # 更新超声扇形
+                if tee_simulator.ultrasound_fan_actor is not None:
+                    actors = self.renderer.GetActors()
+                    actors.InitTraversal()
+                    actor = actors.GetNextItem()
+                    fan_found = False
+                    
+                    while actor:
+                        if actor == tee_simulator.ultrasound_fan_actor:
+                            fan_found = True
+                            break
+                        actor = actors.GetNextItem()
+                    
+                    if not fan_found and self.show_fan_checkbox.isChecked():
+                        self.renderer.AddActor(tee_simulator.ultrasound_fan_actor)
+                
+                # 重新渲染
+                self.vtk_widget.GetRenderWindow().Render()
+                
+            except Exception as e:
+                print(f"更新探头位置时出错: {e}")
     
     def update_probe_angle(self):
         """更新探头角度"""
@@ -543,7 +665,38 @@ class MainWindow(QMainWindow):
         lao = self.lao_slider.value()
         
         self.statusBar().showMessage(f"探头角度: RAO={rao}°, LAO={lao}°", 1000)
-        # TODO: 更新3D视图中的探头角度
+        
+        # 更新3D视图中的探头角度
+        if VTK_AVAILABLE:
+            try:
+                from core.tee_simulator import get_tee_simulator
+                
+                tee_simulator = get_tee_simulator()
+                
+                # 计算方向向量基于RAO和LAO角度
+                import math
+                rao_rad = math.radians(rao)
+                lao_rad = math.radians(lao)
+                
+                # 计算方向向量 (简化模型)
+                direction_x = math.sin(rao_rad) * math.cos(lao_rad)
+                direction_y = math.sin(lao_rad) * math.cos(rao_rad)
+                direction_z = math.cos(rao_rad) * math.cos(lao_rad)
+                
+                # 归一化
+                length = math.sqrt(direction_x**2 + direction_y**2 + direction_z**2)
+                if length > 0:
+                    direction_x /= length
+                    direction_y /= length
+                    direction_z /= length
+                
+                tee_simulator.set_probe_direction((direction_x, direction_y, direction_z))
+                
+                # 重新渲染
+                self.vtk_widget.GetRenderWindow().Render()
+                
+            except Exception as e:
+                print(f"更新探头角度时出错: {e}")
     
     def reset_probe_position(self):
         """重置探头位置"""
@@ -566,7 +719,62 @@ class MainWindow(QMainWindow):
     def change_render_mode(self, mode):
         """更改渲染模式"""
         self.statusBar().showMessage(f"渲染模式: {mode}", 2000)
-        # TODO: 实现渲染模式切换逻辑
+        
+        # 实现渲染模式切换逻辑
+        if not VTK_AVAILABLE:
+            return
+        
+        try:
+            from core.volume_render import get_volume_renderer
+            from core.tee_simulator import get_tee_simulator
+            
+            volume_renderer = get_volume_renderer()
+            tee_simulator = get_tee_simulator()
+            
+            # 清除现有演员
+            self.renderer.RemoveAllViewProps()
+            
+            if mode == "体积渲染":
+                # 创建体积演员
+                volume_actor = volume_renderer.create_volume_actor()
+                if volume_actor is not None:
+                    self.renderer.AddActor(volume_actor)
+            
+            elif mode == "表面渲染":
+                # 创建表面演员
+                surface_actor = volume_renderer.create_surface_actor(threshold=0.3)
+                if surface_actor is not None:
+                    self.renderer.AddActor(surface_actor)
+            
+            elif mode == "线框渲染":
+                # 创建表面演员并设置为线框模式
+                surface_actor = volume_renderer.create_surface_actor(threshold=0.3)
+                if surface_actor is not None:
+                    surface_actor.GetProperty().SetRepresentationToWireframe()
+                    surface_actor.GetProperty().SetColor(0.9, 0.3, 0.2)
+                    self.renderer.AddActor(surface_actor)
+            
+            # 添加坐标轴
+            import vtk
+            axes = vtk.vtkAxesActor()
+            axes.SetTotalLength(100, 100, 100)
+            axes.SetShaftTypeToCylinder()
+            axes.SetCylinderRadius(0.02)
+            self.renderer.AddActor(axes)
+            
+            # 添加探头和超声扇形（如果存在）
+            if tee_simulator.probe_actor is not None:
+                self.renderer.AddActor(tee_simulator.probe_actor)
+            
+            if tee_simulator.ultrasound_fan_actor is not None and self.show_fan_checkbox.isChecked():
+                self.renderer.AddActor(tee_simulator.ultrasound_fan_actor)
+            
+            # 重置相机并重新渲染
+            self.renderer.ResetCamera()
+            self.vtk_widget.GetRenderWindow().Render()
+            
+        except Exception as e:
+            print(f"更改渲染模式时出错: {e}")
     
     def change_opacity(self, value):
         """更改模型透明度"""
@@ -599,3 +807,174 @@ class MainWindow(QMainWindow):
         """
         
         QMessageBox.about(self, "关于", about_text)
+    
+    # 辅助方法
+    def _update_patient_info(self, patient_info):
+        """更新患者信息显示"""
+        self.patient_id_label.setText(str(patient_info.get('patient_id', '未知')))
+        self.patient_name_label.setText(str(patient_info.get('patient_name', '未知')))
+        self.study_date_label.setText(str(patient_info.get('study_date', '未知')))
+        self.modality_label.setText(str(patient_info.get('modality', '未知')))
+    
+    def _update_3d_view(self, image_data):
+        """更新3D视图"""
+        if not VTK_AVAILABLE:
+            return
+        
+        try:
+            # 导入体积渲染器
+            from core.volume_render import get_volume_renderer
+            
+            # 获取体积渲染器
+            volume_renderer = get_volume_renderer()
+            
+            # 设置体积数据
+            volume_renderer.set_volume_data(image_data)
+            
+            # 创建体积演员
+            volume_actor = volume_renderer.create_volume_actor()
+            
+            if volume_actor is not None:
+                # 清除现有演员
+                self.renderer.RemoveAllViewProps()
+                
+                # 添加体积演员
+                self.renderer.AddActor(volume_actor)
+                
+                # 添加坐标轴
+                import vtk
+                axes = vtk.vtkAxesActor()
+                axes.SetTotalLength(100, 100, 100)
+                axes.SetShaftTypeToCylinder()
+                axes.SetCylinderRadius(0.02)
+                self.renderer.AddActor(axes)
+                
+                # 重置相机
+                self.renderer.ResetCamera()
+                self.vtk_widget.GetRenderWindow().Render()
+                
+                # 更新探头位置到体积中心
+                volume_center = volume_renderer.get_volume_center()
+                self._update_probe_to_volume_center(volume_center)
+                
+        except Exception as e:
+            print(f"更新3D视图时出错: {e}")
+    
+    def _update_mpr_views(self, image_data):
+        """更新多平面重建视图"""
+        # 这里实现MPR视图更新
+        # 目前先显示占位符
+        pass
+    
+    def _update_probe_to_volume_center(self, volume_center):
+        """更新探头位置到体积中心"""
+        # 设置滑块范围基于体积中心
+        center_x, center_y, center_z = volume_center
+        
+        # 更新滑块范围和初始值
+        self.x_slider.setRange(int(center_x) - 100, int(center_x) + 100)
+        self.y_slider.setRange(int(center_y) - 100, int(center_y) + 100)
+        self.z_slider.setRange(int(center_z) - 100, int(center_z) + 100)
+        
+        # 设置初始值为体积中心
+        self.x_slider.setValue(int(center_x))
+        self.y_slider.setValue(int(center_y))
+        self.z_slider.setValue(int(center_z))
+        
+        # 更新探头位置
+        self.update_probe_position()
+    
+    def open_dicom_directory(self):
+        """打开DICOM文件夹"""
+        from PyQt5.QtWidgets import QFileDialog
+        
+        dir_path = QFileDialog.getExistingDirectory(
+            self,
+            "选择DICOM文件夹",
+            "",
+            QFileDialog.ShowDirsOnly
+        )
+        
+        if dir_path:
+            self.statusBar().showMessage(f"正在加载文件夹: {dir_path}", 3000)
+            
+            try:
+                # 导入DICOM加载器
+                from core.dicom_loader import get_dicom_loader
+                
+                # 加载DICOM文件夹
+                dicom_loader = get_dicom_loader()
+                success = dicom_loader.load_directory(dir_path)
+                
+                if success:
+                    # 更新患者信息显示
+                    patient_info = dicom_loader.get_patient_info()
+                    self._update_patient_info(patient_info)
+                    
+                    # 获取体积数据
+                    volume_data = dicom_loader.get_volume_data()
+                    
+                    if volume_data is not None:
+                        # 获取间距和原点
+                        spacing = dicom_loader.get_spacing()
+                        origin = dicom_loader.get_origin()
+                        
+                        # 更新3D视图
+                        self._update_3d_view_with_spacing(volume_data, spacing, origin)
+                        
+                        # 更新多平面重建视图
+                        self._update_mpr_views(volume_data)
+                        
+                        self.statusBar().showMessage(f"成功加载DICOM文件夹: {os.path.basename(dir_path)} ({volume_data.shape[2]}个切片)", 5000)
+                    else:
+                        self.statusBar().showMessage("加载DICOM文件夹失败: 无体积数据", 5000)
+                else:
+                    self.statusBar().showMessage("加载DICOM文件夹失败", 5000)
+                    
+            except Exception as e:
+                self.statusBar().showMessage(f"加载DICOM文件夹时出错: {str(e)}", 5000)
+                print(f"加载DICOM文件夹错误: {e}")
+    
+    def _update_3d_view_with_spacing(self, volume_data, spacing, origin):
+        """使用间距和原点更新3D视图"""
+        if not VTK_AVAILABLE:
+            return
+        
+        try:
+            # 导入体积渲染器
+            from core.volume_render import get_volume_renderer
+            
+            # 获取体积渲染器
+            volume_renderer = get_volume_renderer()
+            
+            # 设置体积数据（包含间距和原点）
+            volume_renderer.set_volume_data(volume_data, spacing, origin)
+            
+            # 创建体积演员
+            volume_actor = volume_renderer.create_volume_actor()
+            
+            if volume_actor is not None:
+                # 清除现有演员
+                self.renderer.RemoveAllViewProps()
+                
+                # 添加体积演员
+                self.renderer.AddActor(volume_actor)
+                
+                # 添加坐标轴
+                import vtk
+                axes = vtk.vtkAxesActor()
+                axes.SetTotalLength(100, 100, 100)
+                axes.SetShaftTypeToCylinder()
+                axes.SetCylinderRadius(0.02)
+                self.renderer.AddActor(axes)
+                
+                # 重置相机
+                self.renderer.ResetCamera()
+                self.vtk_widget.GetRenderWindow().Render()
+                
+                # 更新探头位置到体积中心
+                volume_center = volume_renderer.get_volume_center()
+                self._update_probe_to_volume_center(volume_center)
+                
+        except Exception as e:
+            print(f"更新3D视图时出错: {e}")
