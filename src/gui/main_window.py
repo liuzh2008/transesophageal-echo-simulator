@@ -184,3 +184,8 @@ class MainWindow(QMainWindow):
         if 'opacity_slider' in self.ui_components:
             self.ui_components['opacity_slider'].valueChanged.connect(
                 self.event_handlers.handle_change_opacity)
+        
+        # 连接切割平面按钮
+        if 'cut_plane_button' in self.ui_components:
+            self.ui_components['cut_plane_button'].clicked.connect(
+                self.event_handlers.handle_show_cut_plane)

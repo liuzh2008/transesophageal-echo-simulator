@@ -236,6 +236,49 @@ class VTKManager:
         self.renderer.ResetCamera()
         self.vtk_widget.GetRenderWindow().Render()
     
+    def show_cut_plane(self, position_percent=0.5, normal=(0, 0, 1)):
+        """显示切割平面（红色线条+浅红色填充）
+        
+        参数:
+            position_percent: 切割位置百分比 (0.0-1.0)，0.5表示50%位置
+            normal: 平面法线向量，默认垂直于Z轴
+        """
+        if not VTK_AVAILABLE or self.renderer is None:
+            return False
+        
+        try:
+            from core.volume_render import get_volume_renderer
+            
+            # 获取体积渲染器
+            volume_renderer = get_volume_renderer()
+            
+            # 创建切割平面
+            cut_actor, fill_actor = volume_renderer.create_cut_plane(
+                position_percent=position_percent, 
+                normal=normal
+            )
+            
+            if cut_actor is not None:
+                # 添加红色线条切割Actor
+                self.renderer.AddActor(cut_actor)
+                
+                # 如果存在填充Actor，也添加
+                if fill_actor is not None:
+                    self.renderer.AddActor(fill_actor)
+                
+                # 重新渲染
+                self.vtk_widget.GetRenderWindow().Render()
+                return True
+            else:
+                print("警告: 无法创建切割平面")
+                return False
+                
+        except Exception as e:
+            warnings.warn(f"显示切割平面失败: {e}")
+            import traceback
+            traceback.print_exc()
+            return False
+    
     def is_available(self):
         """检查VTK是否可用"""
         return VTK_AVAILABLE

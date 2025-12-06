@@ -102,6 +102,34 @@ class EventHandlers:
         
         QMessageBox.about(self.main_window, "关于", about_text)
     
+    def handle_show_cut_plane(self):
+        """处理显示切割平面事件"""
+        if not self.vtk_manager.is_available():
+            self.main_window.statusBar().showMessage("VTK不可用，无法显示切割平面", 3000)
+            QMessageBox.warning(self.main_window, "警告", "VTK 3D渲染引擎未安装，无法显示切割平面")
+            return
+        
+        # 检查是否有体积数据
+        from core.volume_render import get_volume_renderer
+        volume_renderer = get_volume_renderer()
+        
+        if volume_renderer.volume_data is None:
+            self.main_window.statusBar().showMessage("请先加载DICOM数据", 3000)
+            QMessageBox.warning(self.main_window, "警告", "请先加载DICOM数据以显示切割平面")
+            return
+        
+        # 显示切割平面
+        success = self.vtk_manager.show_cut_plane(
+            position_percent=0.5,  # 50%位置
+            normal=(0, 0, 1)       # 垂直于Z轴
+        )
+        
+        if success:
+            self.main_window.statusBar().showMessage("切割平面显示成功（50%位置，红色线条+浅红色填充）", 5000)
+        else:
+            self.main_window.statusBar().showMessage("切割平面显示失败", 3000)
+            QMessageBox.warning(self.main_window, "警告", "切割平面显示失败，请检查数据")
+    
     def handle_exit(self):
         """处理退出事件"""
         self.main_window.close()

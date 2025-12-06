@@ -479,6 +479,159 @@ class VolumeRenderer:
         except Exception as e:
             warnings.warn(f"更新透明度失败: {e}")
     
+    def create_cut_plane(self, position_percent: float = 0.5, 
+                        normal: Tuple[float, float, float] = (0, 0, 1)) -> Tuple[Optional[vtk.vtkActor], Optional[vtk.vtkActor]]:
+        """创建切割平面（红色线条+浅红色填充）
+        
+        参数:
+            position_percent: 切割位置百分比 (0.0-1.0)，0.5表示50%位置
+            normal: 平面法线向量，默认垂直于Z轴
+            
+        返回:
+            (cut_actor, fill_actor) - 红色线条Actor和浅红色填充Actor
+        """
+        print(f"\n[DEBUG] 开始创建切割平面...")
+        print(f"[DEBUG] VTK_AVAILABLE: {VTK_AVAILABLE}")
+        print(f"[DEBUG] volume_data is None: {self.volume_data is None}")
+        
+        if not VTK_AVAILABLE:
+            print("[DEBUG] VTK不可用")
+            return None, None
+        
+        if self.volume_data is None:
+            print("[DEBUG] 体积数据为空")
+            return None, None
+        
+        try:
+            # 将numpy数组转换为VTK图像数据
+            print(f"[DEBUG] 转换numpy数组到VTK图像...")
+            vtk_image = self._numpy_to_vtk_image(self.volume_data)
+            vtk_image.SetSpacing(self.spacing)
+            vtk_image.SetOrigin(self.origin)
+            
+            # 获取体积边界
+            bounds = vtk_image.GetBounds()
+            print(f"[DEBUG] 体积边界: {bounds}")
+            print(f"[DEBUG] 体积维度: {vtk_image.GetDimensions()}")
+            print(f"[DEBUG] 体积间距: {self.spacing}")
+            print(f"[DEBUG] 体积原点: {self.origin}")
+            
+            # 计算切割位置（50%位置）
+            # 根据法线方向确定切割轴
+            print(f"[DEBUG] 法线向量: {normal}")
+            if abs(normal[2]) > abs(normal[0]) and abs(normal[2]) > abs(normal[1]):
+                # 主要垂直于Z轴
+                cut_position = bounds[4] + (bounds[5] - bounds[4]) * position_percent
+                plane_origin = [(bounds[0] + bounds[1]) / 2, 
+                               (bounds[2] + bounds[3]) / 2, 
+                               cut_position]
+                print(f"[DEBUG] 垂直于Z轴切割，位置: {cut_position}")
+            elif abs(normal[1]) > abs(normal[0]) and abs(normal[1]) > abs(normal[2]):
+                # 主要垂直于Y轴
+                cut_position = bounds[2] + (bounds[3] - bounds[2]) * position_percent
+                plane_origin = [(bounds[0] + bounds[1]) / 2, 
+                               cut_position,
+                               (bounds[4] + bounds[5]) / 2]
+                print(f"[DEBUG] 垂直于Y轴切割，位置: {cut_position}")
+            else:
+                # 主要垂直于X轴
+                cut_position = bounds[0] + (bounds[1] - bounds[0]) * position_percent
+                plane_origin = [cut_position,
+                               (bounds[2] + bounds[3]) / 2,
+                               (bounds[4] + bounds[5]) / 2]
+                print(f"[DEBUG] 垂直于X轴切割，位置: {cut_position}")
+            
+            print(f"[DEBUG] 平面原点: {plane_origin}")
+            
+            # 创建切割平面
+            plane = vtk.vtkPlane()
+            plane.SetOrigin(plane_origin[0], plane_origin[1], plane_origin[2])
+            plane.SetNormal(normal[0], normal[1], normal[2])
+            
+            # 执行切割操作
+            cutter = vtk.vtkCutter()
+            cutter.SetCutFunction(plane)
+            cutter.SetInputData(vtk_image)
+            cutter.Update()
+            
+            cut_polydata = cutter.GetOutput()
+            
+            # 检查是否有切割结果
+            num_points = cut_polydata.GetNumberOfPoints()
+            num_cells = cut_polydata.GetNumberOfCells()
+            print(f"[DEBUG] 切割结果 - 点数: {num_points}, 单元数: {num_cells}")
+            
+            if num_points == 0:
+                print("[DEBUG] 警告: 切割平面未产生任何几何体")
+                print("[DEBUG] 可能原因: 平面位置在体积外部，或体积数据为空")
+                return None, None
+            
+            # 创建红色线条切割Actor（轮廓线）
+            cut_mapper = vtk.vtkPolyDataMapper()
+            cut_mapper.SetInputData(cut_polydata)
+            
+            cut_actor = vtk.vtkActor()
+            cut_actor.SetMapper(cut_mapper)
+            cut_actor.GetProperty().SetColor(0.8, 0.2, 0.2)  # 红色轮廓 (RGB: 0.8,0.2,0.2) - 与参考文件一致
+            cut_actor.GetProperty().SetLineWidth(3.0)        # 线宽3.0 - 与参考文件一致
+            cut_actor.GetProperty().SetOpacity(0.7)          # 透明度0.7 - 与参考文件一致
+            cut_actor.GetProperty().SetRepresentationToWireframe()  # 线框模式 - 与参考文件一致
+            
+            print(f"[DEBUG] 创建红色轮廓线Actor成功")
+            
+            # 创建浅红色填充平面Actor - 使用vtkContourTriangulator
+            fill_actor = None
+            try:
+                print(f"[DEBUG] 创建填充平面（使用vtkContourTriangulator）...")
+                
+                # 使用vtkFeatureEdges提取轮廓线
+                feature_edges = vtk.vtkFeatureEdges()
+                feature_edges.SetInputData(cut_polydata)
+                feature_edges.BoundaryEdgesOn()
+                feature_edges.FeatureEdgesOff()
+                feature_edges.ManifoldEdgesOff()
+                feature_edges.NonManifoldEdgesOff()
+                feature_edges.Update()
+                
+                contour_polydata = feature_edges.GetOutput()
+                
+                if contour_polydata.GetNumberOfLines() > 0:
+                    # 使用vtkContourTriangulator创建填充平面
+                    triangulator = vtk.vtkContourTriangulator()
+                    triangulator.SetInputData(contour_polydata)
+                    triangulator.Update()
+                    
+                    filled_polydata = triangulator.GetOutput()
+                    
+                    if filled_polydata.GetNumberOfPolys() > 0:
+                        fill_mapper = vtk.vtkPolyDataMapper()
+                        fill_mapper.SetInputData(filled_polydata)
+                        
+                        fill_actor = vtk.vtkActor()
+                        fill_actor.SetMapper(fill_mapper)
+                        fill_actor.GetProperty().SetColor(0.9, 0.6, 0.6)  # 浅红色填充
+                        fill_actor.GetProperty().SetOpacity(0.7)
+                        fill_actor.GetProperty().SetRepresentationToSurface()
+                        fill_actor.GetProperty().SetEdgeVisibility(False)
+                        print(f"[DEBUG] 使用ContourTriangulator创建填充平面成功")
+                    else:
+                        print(f"[DEBUG] ContourTriangulator没有生成多边形")
+                else:
+                    print(f"[DEBUG] 无法提取轮廓线")
+                    
+            except Exception as e:
+                print(f"[DEBUG] 创建填充平面时出错: {e}")
+                # 如果创建填充平面失败，只返回线条Actor
+            
+            print(f"[DEBUG] 切割平面创建完成")
+            return cut_actor, fill_actor
+            
+        except Exception as e:
+            print(f"[DEBUG] 创建切割平面失败: {e}")
+            import traceback
+            traceback.print_exc()
+            return None, None
+    
     def clear(self):
         """清除所有VTK对象"""
         self.volume_data = None

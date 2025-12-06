@@ -160,6 +160,7 @@ class UIComponents:
             - view_3d_checkbox: 3D视图显示复选框
             - render_combo: 渲染模式下拉框
             - opacity_slider: 透明度滑块
+            - cut_plane_button: 切割平面按钮
         """
         panel = QGroupBox("视图选项")
         layout = QVBoxLayout(panel)
@@ -186,11 +187,49 @@ class UIComponents:
         opacity_slider.setValue(70)
         layout.addWidget(opacity_slider)
         
+        # 添加分隔线
+        layout.addWidget(UIComponents._create_separator())
+        
+        # 切割平面控制
+        cut_plane_label = QLabel("切割平面:")
+        cut_plane_label.setStyleSheet("font-weight: bold; margin-top: 10px;")
+        layout.addWidget(cut_plane_label)
+        
+        # 切割平面按钮
+        cut_plane_button = QPushButton("显示50%位置横切面")
+        cut_plane_button.setToolTip("在3D模型中显示50%位置的横切面（红色线条+浅红色填充）")
+        cut_plane_button.setStyleSheet("""
+            QPushButton {
+                background-color: #e74c3c;
+                color: white;
+                font-weight: bold;
+                padding: 8px;
+                border-radius: 4px;
+            }
+            QPushButton:hover {
+                background-color: #c0392b;
+            }
+            QPushButton:pressed {
+                background-color: #a93226;
+            }
+        """)
+        layout.addWidget(cut_plane_button)
+        
         return panel, {
             'view_3d_checkbox': view_3d_checkbox,
             'render_combo': render_combo,
-            'opacity_slider': opacity_slider
+            'opacity_slider': opacity_slider,
+            'cut_plane_button': cut_plane_button
         }
+    
+    @staticmethod
+    def _create_separator():
+        """创建分隔线"""
+        separator = QFrame()
+        separator.setFrameShape(QFrame.HLine)
+        separator.setFrameShadow(QFrame.Sunken)
+        separator.setStyleSheet("background-color: #cccccc;")
+        return separator
     
     @staticmethod
     def create_3d_view_frame():
