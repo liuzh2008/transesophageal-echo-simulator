@@ -82,8 +82,8 @@ class MainWindow(QMainWindow):
     
     def create_main_content(self, main_layout):
         """创建主内容区域"""
-        # 创建主布局结构（现在返回垂直分割器）
-        v_splitter, h_splitter, left_widget, left_layout, right_widget, right_layout = \
+        # 创建主布局结构（新的布局：上部图像区域，下部控制面板）
+        main_v_splitter, images_h_splitter, view_3d_widget, view_3d_layout, view_2d_widget, view_2d_layout, bottom_widget, bottom_layout = \
             UIComponents.create_main_layout()
         
         # 创建3D视图框架
@@ -91,7 +91,7 @@ class MainWindow(QMainWindow):
         self.ui_components['view_3d_frame'] = view_3d_frame
         
         # 添加3D视图标签
-        left_layout.addWidget(view_3d_label)
+        view_3d_layout.addWidget(view_3d_label)
         
         # 添加VTK小部件（如果可用）
         if self.vtk_manager.is_available():
@@ -107,46 +107,36 @@ class MainWindow(QMainWindow):
             placeholder_layout = QVBoxLayout(view_3d_frame)
             placeholder_layout.addWidget(placeholder)
         
-        left_layout.addWidget(view_3d_frame)
+        view_3d_layout.addWidget(view_3d_frame)
         
-        # 创建患者信息面板
-        patient_panel, patient_labels = UIComponents.create_patient_panel()
-        self.ui_components.update(patient_labels)
-        right_layout.addWidget(patient_panel)
+        # 创建2D视图框架（右侧区域）
+        self._create_2d_view_area(view_2d_widget, view_2d_layout)
         
-        # 创建视图选项面板
-        view_panel, view_controls = UIComponents.create_view_options_panel()
-        self.ui_components.update(view_controls)
-        right_layout.addWidget(view_panel)
+        # 将3D和2D部件添加到图像水平分割器
+        images_h_splitter.addWidget(view_3d_widget)
+        images_h_splitter.addWidget(view_2d_widget)
         
-        # 添加弹性空间
-        right_layout.addStretch()
+        # 设置图像水平分割比例（60%:40%）
+        images_h_splitter.setSizes([720, 480])  # 总宽度1200px
         
-        # 将左右部件添加到水平分割器
-        h_splitter.addWidget(left_widget)
-        h_splitter.addWidget(right_widget)
+        # 创建底部控制面板（患者信息+视图选项）
+        self._create_bottom_panel(bottom_widget, bottom_layout)
         
-        # 设置水平分割比例（80%:20%）
-        h_splitter.setSizes([960, 240])  # 总宽度1200px
+        # 设置主垂直分割比例（70%:30%）
+        main_v_splitter.setSizes([560, 240])  # 总高度800px
         
-        # 创建2D视图框架（下部区域）
-        self._create_2d_view_area(v_splitter)
-        
-        # 设置垂直分割比例（70%:30%）
-        v_splitter.setSizes([560, 240])  # 总高度800px
-        
-        # 将垂直分割器添加到主布局
-        main_layout.addWidget(v_splitter)
+        # 将主垂直分割器添加到主布局
+        main_layout.addWidget(main_v_splitter)
     
-    def _create_2d_view_area(self, v_splitter):
-        """创建2D视图区域"""
-        from PyQt5.QtWidgets import QFrame, QLabel, QVBoxLayout, QWidget
+    def _create_2d_view_area(self, parent_widget, parent_layout):
+        """创建2D视图区域（现在在右侧）"""
+        from PyQt5.QtWidgets import QFrame, QLabel, QVBoxLayout
         
         # 创建2D视图框架
         view_2d_frame = QFrame()
         view_2d_frame.setFrameStyle(QFrame.StyledPanel | QFrame.Sunken)
         view_2d_frame.setLineWidth(2)
-        view_2d_frame.setMinimumHeight(200)
+        view_2d_frame.setMinimumHeight(400)
         
         # 2D视图标签
         view_2d_label = QLabel("2D切片视图")
@@ -154,21 +144,46 @@ class MainWindow(QMainWindow):
         view_2d_label.setStyleSheet("font-weight: bold; font-size: 14px; padding: 5px;")
         
         # 创建2D视图布局
-        view_2d_layout = QVBoxLayout(view_2d_frame)
-        view_2d_layout.addWidget(view_2d_label)
+        view_2d_frame_layout = QVBoxLayout(view_2d_frame)
+        view_2d_frame_layout.addWidget(view_2d_label)
         
         # 创建占位符（稍后会被VTK小部件替换）
         self.view_2d_placeholder = QLabel("点击'显示50%位置横切面'按钮显示2D切片")
         self.view_2d_placeholder.setAlignment(Qt.AlignCenter)
         self.view_2d_placeholder.setStyleSheet("color: #666; font-style: italic; padding: 20px;")
-        view_2d_layout.addWidget(self.view_2d_placeholder)
+        view_2d_frame_layout.addWidget(self.view_2d_placeholder)
         
         # 保存2D视图框架引用
         self.ui_components['view_2d_frame'] = view_2d_frame
         self.ui_components['view_2d_label'] = view_2d_label
         
-        # 将2D视图框架添加到垂直分割器的下部
-        v_splitter.addWidget(view_2d_frame)
+        # 将2D视图框架添加到父布局
+        parent_layout.addWidget(view_2d_frame)
+    
+    def _create_bottom_panel(self, bottom_widget, bottom_layout):
+        """创建底部控制面板（患者信息+视图选项）"""
+        from PyQt5.QtWidgets import QHBoxLayout
+        
+        # 创建水平布局来并排显示患者信息和视图选项
+        bottom_h_layout = QHBoxLayout()
+        bottom_h_layout.setContentsMargins(0, 0, 0, 0)
+        bottom_h_layout.setSpacing(20)
+        
+        # 创建患者信息面板
+        patient_panel, patient_labels = UIComponents.create_patient_panel()
+        self.ui_components.update(patient_labels)
+        bottom_h_layout.addWidget(patient_panel)
+        
+        # 创建视图选项面板
+        view_panel, view_controls = UIComponents.create_view_options_panel()
+        self.ui_components.update(view_controls)
+        bottom_h_layout.addWidget(view_panel)
+        
+        # 添加弹性空间
+        bottom_h_layout.addStretch()
+        
+        # 将水平布局添加到底部部件
+        bottom_layout.addLayout(bottom_h_layout)
     
     def create_status_bar(self):
         """创建状态栏"""

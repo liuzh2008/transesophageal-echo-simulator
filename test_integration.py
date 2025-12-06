@@ -32,6 +32,23 @@ def test_main_window():
     else:
         print("[ERROR] 2D视图标签未创建")
     
+    # 检查布局结构
+    print(f"UI组件总数: {len(window.ui_components)}")
+    
+    # 检查关键组件
+    required_components = [
+        'view_3d_frame',
+        'patient_id_label',
+        'patient_name_label',
+        'cut_plane_button'
+    ]
+    
+    for component in required_components:
+        if component in window.ui_components:
+            print(f"[OK] {component} 已创建")
+        else:
+            print(f"[WARNING] {component} 未找到")
+    
     # 显示窗口
     window.show()
     

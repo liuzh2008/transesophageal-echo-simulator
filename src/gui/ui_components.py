@@ -257,31 +257,40 @@ class UIComponents:
         """
         创建主布局结构
         
-        @returns {tuple} (v_splitter, h_splitter, left_widget, left_layout, right_widget, right_layout)
-        @returns {QSplitter} v_splitter - 垂直分割器（主分割器）
-        @returns {QSplitter} h_splitter - 水平分割器（上部分割器）
-        @returns {QWidget} left_widget - 左侧部件（3D视图区域）
-        @returns {QVBoxLayout} left_layout - 左侧布局
-        @returns {QWidget} right_widget - 右侧部件（信息面板区域）
-        @returns {QVBoxLayout} right_layout - 右侧布局
+        @returns {tuple} (main_v_splitter, images_h_splitter, view_3d_widget, view_3d_layout, view_2d_widget, view_2d_layout, bottom_widget, bottom_layout)
+        @returns {QSplitter} main_v_splitter - 主垂直分割器（上部：图像区域，下部：控制面板）
+        @returns {QSplitter} images_h_splitter - 图像水平分割器（左侧：3D视图，右侧：2D图像）
+        @returns {QWidget} view_3d_widget - 3D视图部件
+        @returns {QVBoxLayout} view_3d_layout - 3D视图布局
+        @returns {QWidget} view_2d_widget - 2D图像部件
+        @returns {QVBoxLayout} view_2d_layout - 2D图像布局
+        @returns {QWidget} bottom_widget - 底部控制面板部件
+        @returns {QVBoxLayout} bottom_layout - 底部控制面板布局
         """
-        # 创建垂直分割器（上部：3D视图+控制面板，下部：2D图像）
-        v_splitter = QSplitter(Qt.Vertical)
+        # 创建主垂直分割器（上部：图像区域，下部：控制面板）
+        main_v_splitter = QSplitter(Qt.Vertical)
         
-        # 创建上部水平分割器（左侧3D视图，右侧信息面板）
-        h_splitter = QSplitter(Qt.Horizontal)
+        # 创建图像水平分割器（左侧：3D视图，右侧：2D图像）
+        images_h_splitter = QSplitter(Qt.Horizontal)
         
         # 左侧：3D视图区域
-        left_widget = QWidget()
-        left_layout = QVBoxLayout(left_widget)
-        left_layout.setContentsMargins(0, 0, 0, 0)
+        view_3d_widget = QWidget()
+        view_3d_layout = QVBoxLayout(view_3d_widget)
+        view_3d_layout.setContentsMargins(0, 0, 0, 0)
         
-        # 右侧：信息面板区域
-        right_widget = QWidget()
-        right_layout = QVBoxLayout(right_widget)
-        right_layout.setContentsMargins(10, 10, 10, 10)
+        # 右侧：2D图像区域
+        view_2d_widget = QWidget()
+        view_2d_layout = QVBoxLayout(view_2d_widget)
+        view_2d_layout.setContentsMargins(0, 0, 0, 0)
         
-        # 将水平分割器添加到垂直分割器的上部
-        v_splitter.addWidget(h_splitter)
+        # 底部：控制面板区域（患者信息+视图选项）
+        bottom_widget = QWidget()
+        bottom_layout = QVBoxLayout(bottom_widget)
+        bottom_layout.setContentsMargins(10, 10, 10, 10)
         
-        return v_splitter, h_splitter, left_widget, left_layout, right_widget, right_layout
+        # 将图像水平分割器添加到主垂直分割器的上部
+        main_v_splitter.addWidget(images_h_splitter)
+        # 将底部控制面板添加到主垂直分割器的下部
+        main_v_splitter.addWidget(bottom_widget)
+        
+        return main_v_splitter, images_h_splitter, view_3d_widget, view_3d_layout, view_2d_widget, view_2d_layout, bottom_widget, bottom_layout
