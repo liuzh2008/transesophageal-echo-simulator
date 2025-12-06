@@ -1,0 +1,6 @@
+# Python项目依赖
+# 生成命令: pip freeze > requirements.txt
+
+PyQt5==5.15.11
+PyQt5-Qt5==5.15.2
+PyQt5-sip==12.17.1
