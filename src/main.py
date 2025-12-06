@@ -55,31 +55,31 @@ def auto_load_dicom_folder(window):
 def load_dicom_folder(window, folder_path):
     """加载DICOM文件夹"""
     try:
-        # 导入DICOM加载器
-        from core.dicom_loader import get_dicom_loader
+        # 使用窗口的DICOM管理器
+        dicom_manager = window.dicom_manager
+        vtk_manager = window.vtk_manager
         
         # 加载DICOM文件夹
-        dicom_loader = get_dicom_loader()
-        success = dicom_loader.load_directory(folder_path)
+        success = dicom_manager.load_directory(folder_path)
         
         if success:
             # 更新患者信息显示
-            patient_info = dicom_loader.get_patient_info()
-            window._update_patient_info(patient_info)
+            patient_info = dicom_manager.get_patient_info()
+            
+            # 通过事件处理器更新UI
+            if hasattr(window, 'event_handlers'):
+                window.event_handlers._update_patient_info(patient_info)
             
             # 获取体积数据
-            volume_data = dicom_loader.get_volume_data()
+            volume_data = dicom_manager.get_volume_data()
             
             if volume_data is not None:
                 # 获取间距和原点
-                spacing = dicom_loader.get_spacing()
-                origin = dicom_loader.get_origin()
+                spacing = dicom_manager.get_spacing()
+                origin = dicom_manager.get_origin()
                 
                 # 更新3D视图
-                window._update_3d_view_with_spacing(volume_data, spacing, origin)
-                
-                # 更新多平面重建视图
-                window._update_mpr_views(volume_data)
+                vtk_manager.set_volume_data(volume_data, spacing, origin)
                 
                 window.statusBar().showMessage(f"自动加载成功: {os.path.basename(folder_path)} ({volume_data.shape[2]}个切片)", 5000)
                 print(f"自动加载成功: {folder_path} ({volume_data.shape[2]}个切片)")
