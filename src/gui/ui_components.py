@@ -195,6 +195,10 @@ class UIComponents:
         cut_plane_label.setStyleSheet("font-weight: bold; margin-top: 10px;")
         layout.addWidget(cut_plane_label)
         
+        # 创建水平布局来放置按钮和计时标签
+        cut_plane_layout = QHBoxLayout()
+        cut_plane_layout.setSpacing(10)
+        
         # 切割平面按钮
         cut_plane_button = QPushButton("显示50%位置横切面")
         cut_plane_button.setToolTip("在3D模型中显示50%位置的横切面（红色线条+浅红色填充）")
@@ -213,13 +217,34 @@ class UIComponents:
                 background-color: #a93226;
             }
         """)
-        layout.addWidget(cut_plane_button)
+        cut_plane_layout.addWidget(cut_plane_button)
+        
+        # 计时显示标签
+        time_label = QLabel("用时: --")
+        time_label.setStyleSheet("""
+            QLabel {
+                color: #666;
+                font-style: italic;
+                padding: 5px;
+                background-color: #f5f5f5;
+                border-radius: 4px;
+                border: 1px solid #ddd;
+            }
+        """)
+        time_label.setMinimumWidth(100)
+        cut_plane_layout.addWidget(time_label)
+        
+        # 添加弹性空间
+        cut_plane_layout.addStretch()
+        
+        layout.addLayout(cut_plane_layout)
         
         return panel, {
             'view_3d_checkbox': view_3d_checkbox,
             'render_combo': render_combo,
             'opacity_slider': opacity_slider,
-            'cut_plane_button': cut_plane_button
+            'cut_plane_button': cut_plane_button,
+            'cut_plane_time_label': time_label  # 新增计时标签
         }
     
     @staticmethod

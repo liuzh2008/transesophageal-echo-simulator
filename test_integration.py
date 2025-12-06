@@ -40,7 +40,8 @@ def test_main_window():
         'view_3d_frame',
         'patient_id_label',
         'patient_name_label',
-        'cut_plane_button'
+        'cut_plane_button',
+        'cut_plane_time_label'  # 新增计时标签
     ]
     
     for component in required_components:
@@ -48,6 +49,12 @@ def test_main_window():
             print(f"[OK] {component} 已创建")
         else:
             print(f"[WARNING] {component} 未找到")
+    
+    # 检查计时标签初始状态
+    if 'cut_plane_time_label' in window.ui_components:
+        time_label = window.ui_components['cut_plane_time_label']
+        print(f"计时标签初始文本: {time_label.text()}")
+        print(f"计时标签样式: {time_label.styleSheet()[:50]}...")
     
     # 显示窗口
     window.show()

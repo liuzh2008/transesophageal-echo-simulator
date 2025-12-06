@@ -103,10 +103,50 @@ class EventHandlers:
         QMessageBox.about(self.main_window, "关于", about_text)
     
     def handle_show_cut_plane(self):
-        """处理显示切割平面事件（在主窗口中显示2D图像）"""
+        """
+        处理显示切割平面事件（在主窗口中显示2D图像）
+        
+        此方法处理切割平面按钮点击事件，包括：
+        1. 记录开始时间
+        2. 更新计时标签状态
+        3. 检查VTK可用性和数据存在性
+        4. 调用VTK管理器显示切割平面
+        5. 在主窗口中显示2D图像
+        6. 更新计时标签显示用时
+        
+        @function handle_show_cut_plane
+        @memberof EventHandlers
+        @instance
+        @returns {void}
+        @throws {Exception} 如果VTK不可用或数据不存在
+        @example
+        // 在事件连接中使用
+        cut_plane_button.clicked.connect(event_handlers.handle_show_cut_plane)
+        """
+        import time
+        
+        # 记录开始时间
+        start_time = time.time()
+        
+        # 更新计时标签为"计算中..."
+        if 'cut_plane_time_label' in self.ui_components:
+            self.ui_components['cut_plane_time_label'].setText("用时: 计算中...")
+            self.ui_components['cut_plane_time_label'].setStyleSheet("""
+                QLabel {
+                    color: #e67e22;
+                    font-weight: bold;
+                    font-style: italic;
+                    padding: 5px;
+                    background-color: #fff9e6;
+                    border-radius: 4px;
+                    border: 1px solid #f39c12;
+                }
+            """)
+        
         if not self.vtk_manager.is_available():
             self.main_window.statusBar().showMessage("VTK不可用，无法显示切割平面", 3000)
             QMessageBox.warning(self.main_window, "警告", "VTK 3D渲染引擎未安装，无法显示切割平面")
+            self._update_time_label(start_time, False)
             return
         
         # 检查是否有体积数据
@@ -116,6 +156,7 @@ class EventHandlers:
         if volume_renderer.volume_data is None:
             self.main_window.statusBar().showMessage("请先加载DICOM数据", 3000)
             QMessageBox.warning(self.main_window, "警告", "请先加载DICOM数据以显示切割平面")
+            self._update_time_label(start_time, False)
             return
         
         # 显示切割平面
@@ -128,10 +169,72 @@ class EventHandlers:
         if success:
             # 在主窗口中显示2D图像
             self._show_2d_image_in_main_window()
+            
+            # 更新计时标签
+            self._update_time_label(start_time, True)
+            
             self.main_window.statusBar().showMessage("切割平面显示成功（50%位置，红色线条+浅红色填充），2D图像已显示在主窗口中", 5000)
         else:
             self.main_window.statusBar().showMessage("切割平面显示失败", 3000)
             QMessageBox.warning(self.main_window, "警告", "切割平面显示失败，请检查数据")
+            self._update_time_label(start_time, False)
+    
+    def _update_time_label(self, start_time, success):
+        """
+        更新计时标签
+        
+        此方法计算从开始时间到当前时间的用时，并更新计时标签的显示。
+        根据操作成功与否，显示不同的颜色和文本。
+        
+        @function _update_time_label
+        @memberof EventHandlers
+        @instance
+        @param {float} start_time - 开始时间（time.time()返回的时间戳）
+        @param {bool} success - 操作是否成功
+        @returns {void}
+        @example
+        // 在handle_show_cut_plane方法中调用
+        self._update_time_label(start_time, True)
+        """
+        import time
+        
+        # 计算用时
+        end_time = time.time()
+        elapsed_time = end_time - start_time
+        
+        if 'cut_plane_time_label' in self.ui_components:
+            if success:
+                # 格式化时间显示（毫秒）
+                if elapsed_time < 0.001:
+                    time_str = "<1ms"
+                elif elapsed_time < 1.0:
+                    time_str = f"{elapsed_time*1000:.1f}ms"
+                else:
+                    time_str = f"{elapsed_time:.2f}s"
+                
+                self.ui_components['cut_plane_time_label'].setText(f"用时: {time_str}")
+                self.ui_components['cut_plane_time_label'].setStyleSheet("""
+                    QLabel {
+                        color: #27ae60;
+                        font-weight: bold;
+                        padding: 5px;
+                        background-color: #eafaf1;
+                        border-radius: 4px;
+                        border: 1px solid #2ecc71;
+                    }
+                """)
+            else:
+                self.ui_components['cut_plane_time_label'].setText("用时: 失败")
+                self.ui_components['cut_plane_time_label'].setStyleSheet("""
+                    QLabel {
+                        color: #c0392b;
+                        font-weight: bold;
+                        padding: 5px;
+                        background-color: #fdedec;
+                        border-radius: 4px;
+                        border: 1px solid #e74c3c;
+                    }
+                """)
     
     def _show_2d_image_in_main_window(self):
         """在主窗口中显示2D图像"""
