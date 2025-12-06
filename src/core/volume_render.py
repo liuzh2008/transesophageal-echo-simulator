@@ -5,13 +5,15 @@
 """
 
 import numpy as np
-from typing import Optional, Tuple, List, Dict, Any
+from typing import Optional, Tuple, List, Dict, Any, Union, TYPE_CHECKING
 import warnings
 
 try:
     import vtk
-    from vtk.util import numpy_support
+    from vtkmodules.util import numpy_support
+
     VTK_AVAILABLE = True
+    
 except ImportError:
     VTK_AVAILABLE = False
     warnings.warn("VTK库未安装，3D渲染功能将受限")
@@ -261,7 +263,11 @@ class VolumeRenderer:
         # 归一化方向向量
         norm = np.linalg.norm(direction)
         if norm > 0:
-            self.probe_direction = tuple(d / norm for d in direction)
+            # 显式创建3元组以避免类型检查器错误
+            normalized = (float(direction[0] / norm), 
+                         float(direction[1] / norm), 
+                         float(direction[2] / norm))
+            self.probe_direction = normalized
     
     def create_ultrasound_fan(self, angle: float = 60.0, radius: float = 100.0) -> Optional[vtk.vtkActor]:
         """创建超声扇形声窗
@@ -356,7 +362,9 @@ class VolumeRenderer:
             rotation_angle = np.degrees(np.arccos(np.dot(z_axis, self.probe_direction)))
             
             if np.linalg.norm(rotation_axis) > 0:
-                transform.RotateWXYZ(rotation_angle, rotation_axis)
+                # 将numpy数组转换为列表
+                axis_list = rotation_axis.tolist()
+                transform.RotateWXYZ(rotation_angle, axis_list[0], axis_list[1], axis_list[2])
         
         self.ultrasound_fan.SetUserTransform(transform)
     
@@ -531,7 +539,10 @@ class VolumeRenderer:
     
     def create_cut_plane(self, position_percent: float = 0.5, 
                         normal: Tuple[float, float, float] = (0, 0, 1),
-                        return_data: bool = False) -> Tuple[Optional[vtk.vtkActor], Optional[vtk.vtkActor], Optional[vtk.vtkPolyData]]:
+                        return_data: bool = False) -> Union[
+                            Tuple[Optional[vtk.vtkActor], Optional[vtk.vtkActor]], 
+                            Tuple[Optional[vtk.vtkActor], Optional[vtk.vtkActor], Optional[vtk.vtkPolyData]]
+                        ]:
         """创建切割平面（红色线条+浅红色填充）
         
         参数:
