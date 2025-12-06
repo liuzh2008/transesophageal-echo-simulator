@@ -1,6 +1,20 @@
 # Python项目依赖
 # 生成命令: pip freeze > requirements.txt
 
+# GUI框架
 PyQt5==5.15.11
 PyQt5-Qt5==5.15.2
 PyQt5-sip==12.17.1
+
+# 3D渲染和医学图像处理
+vtk==9.3.0
+
+# 科学计算
+numpy==1.26.4
+
+# DICOM文件处理
+pydicom==2.4.4
+
+# 开发工具（可选）
+matplotlib==3.8.4  # 用于2D绘图
+scipy==1.13.0      # 科学计算库
