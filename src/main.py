@@ -29,8 +29,70 @@ def main():
     window = MainWindow()
     window.show()
     
+    # 自动加载DICOM文件夹（如果存在）
+    auto_load_dicom_folder(window)
+    
     # 运行应用程序
     sys.exit(app.exec_())
+
+
+def auto_load_dicom_folder(window):
+    """自动加载DICOM文件夹（如果存在）"""
+    dicom_folder = r"D:\patients\SE7"
+    
+    if os.path.exists(dicom_folder):
+        print(f"检测到DICOM文件夹: {dicom_folder}")
+        print("正在自动加载...")
+        
+        # 延迟加载，确保窗口完全初始化
+        from PyQt5.QtCore import QTimer
+        QTimer.singleShot(1000, lambda: load_dicom_folder(window, dicom_folder))
+    else:
+        print(f"DICOM文件夹不存在: {dicom_folder}")
+        print("应用程序将以空状态启动")
+
+
+def load_dicom_folder(window, folder_path):
+    """加载DICOM文件夹"""
+    try:
+        # 导入DICOM加载器
+        from core.dicom_loader import get_dicom_loader
+        
+        # 加载DICOM文件夹
+        dicom_loader = get_dicom_loader()
+        success = dicom_loader.load_directory(folder_path)
+        
+        if success:
+            # 更新患者信息显示
+            patient_info = dicom_loader.get_patient_info()
+            window._update_patient_info(patient_info)
+            
+            # 获取体积数据
+            volume_data = dicom_loader.get_volume_data()
+            
+            if volume_data is not None:
+                # 获取间距和原点
+                spacing = dicom_loader.get_spacing()
+                origin = dicom_loader.get_origin()
+                
+                # 更新3D视图
+                window._update_3d_view_with_spacing(volume_data, spacing, origin)
+                
+                # 更新多平面重建视图
+                window._update_mpr_views(volume_data)
+                
+                window.statusBar().showMessage(f"自动加载成功: {os.path.basename(folder_path)} ({volume_data.shape[2]}个切片)", 5000)
+                print(f"自动加载成功: {folder_path} ({volume_data.shape[2]}个切片)")
+            else:
+                window.statusBar().showMessage("自动加载失败: 无体积数据", 5000)
+                print("自动加载失败: 无体积数据")
+        else:
+            window.statusBar().showMessage("自动加载DICOM文件夹失败", 5000)
+            print("自动加载DICOM文件夹失败")
+            
+    except Exception as e:
+        window.statusBar().showMessage(f"自动加载时出错: {str(e)}", 5000)
+        print(f"自动加载时出错: {e}")
 
 
 if __name__ == "__main__":
