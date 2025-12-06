@@ -103,7 +103,7 @@ class EventHandlers:
         QMessageBox.about(self.main_window, "关于", about_text)
     
     def handle_show_cut_plane(self):
-        """处理显示切割平面事件"""
+        """处理显示切割平面事件（在主窗口中显示2D图像）"""
         if not self.vtk_manager.is_available():
             self.main_window.statusBar().showMessage("VTK不可用，无法显示切割平面", 3000)
             QMessageBox.warning(self.main_window, "警告", "VTK 3D渲染引擎未安装，无法显示切割平面")
@@ -118,18 +118,82 @@ class EventHandlers:
             QMessageBox.warning(self.main_window, "警告", "请先加载DICOM数据以显示切割平面")
             return
         
-        # 显示切割平面（同时显示2D截面窗口）
+        # 显示切割平面
         success = self.vtk_manager.show_cut_plane(
             position_percent=0.5,  # 50%位置
             normal=(0, 0, 1),      # 垂直于Z轴
-            show_2d_window=True    # 显示2D截面窗口
+            show_2d_window=False   # 不在新窗口中显示2D图像，而是在主窗口中显示
         )
         
         if success:
-            self.main_window.statusBar().showMessage("切割平面显示成功（50%位置，红色线条+浅红色填充），2D截面窗口已打开", 5000)
+            # 在主窗口中显示2D图像
+            self._show_2d_image_in_main_window()
+            self.main_window.statusBar().showMessage("切割平面显示成功（50%位置，红色线条+浅红色填充），2D图像已显示在主窗口中", 5000)
         else:
             self.main_window.statusBar().showMessage("切割平面显示失败", 3000)
             QMessageBox.warning(self.main_window, "警告", "切割平面显示失败，请检查数据")
+    
+    def _show_2d_image_in_main_window(self):
+        """在主窗口中显示2D图像"""
+        try:
+            # 获取2D视图框架
+            if 'view_2d_frame' not in self.ui_components:
+                print("警告: 找不到2D视图框架")
+                return
+            
+            view_2d_frame = self.ui_components['view_2d_frame']
+            
+            # 清除现有的占位符
+            if hasattr(self.main_window, 'view_2d_placeholder'):
+                layout = view_2d_frame.layout()
+                if layout:
+                    # 移除占位符
+                    self.main_window.view_2d_placeholder.setParent(None)
+            
+            # 创建内嵌的2D视图
+            from .cross_section_window import create_embedded_2d_view
+            from core.volume_render import get_volume_renderer
+            
+            volume_renderer = get_volume_renderer()
+            vtk_image_data = volume_renderer.get_vtk_image_data()
+            
+            if vtk_image_data is None:
+                print("警告: 无法获取VTK图像数据")
+                return
+            
+            # 创建2D视图小部件
+            vtk_widget = create_embedded_2d_view(
+                image_data=vtk_image_data,
+                normal_vector=(0, 0, 1),  # 垂直于Z轴
+                cut_position=0.5,         # 50%位置
+                parent_widget=view_2d_frame
+            )
+            
+            if vtk_widget is not None:
+                # 添加到2D视图框架
+                layout = view_2d_frame.layout()
+                if layout:
+                    # 移除所有现有部件（除了标签）
+                    for i in reversed(range(layout.count())):
+                        widget = layout.itemAt(i).widget()
+                        if widget and widget != self.ui_components.get('view_2d_label'):
+                            widget.setParent(None)
+                    
+                    # 添加VTK小部件
+                    layout.addWidget(vtk_widget)
+                    
+                    # 保存引用
+                    self.ui_components['view_2d_vtk_widget'] = vtk_widget
+                    print("[DEBUG] 2D图像已成功显示在主窗口中")
+                else:
+                    print("警告: 2D视图框架没有布局")
+            else:
+                print("警告: 无法创建2D视图小部件")
+                
+        except Exception as e:
+            print(f"在主窗口中显示2D图像时出错: {e}")
+            import traceback
+            traceback.print_exc()
     
     def handle_exit(self):
         """处理退出事件"""

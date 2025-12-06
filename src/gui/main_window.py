@@ -82,8 +82,8 @@ class MainWindow(QMainWindow):
     
     def create_main_content(self, main_layout):
         """创建主内容区域"""
-        # 创建主布局结构
-        h_splitter, left_widget, left_layout, right_widget, right_layout = \
+        # 创建主布局结构（现在返回垂直分割器）
+        v_splitter, h_splitter, left_widget, left_layout, right_widget, right_layout = \
             UIComponents.create_main_layout()
         
         # 创建3D视图框架
@@ -122,15 +122,53 @@ class MainWindow(QMainWindow):
         # 添加弹性空间
         right_layout.addStretch()
         
-        # 将左右部件添加到分割器
+        # 将左右部件添加到水平分割器
         h_splitter.addWidget(left_widget)
         h_splitter.addWidget(right_widget)
         
-        # 设置分割比例（80%:20%）
+        # 设置水平分割比例（80%:20%）
         h_splitter.setSizes([960, 240])  # 总宽度1200px
         
-        # 将分割器添加到主布局
-        main_layout.addWidget(h_splitter)
+        # 创建2D视图框架（下部区域）
+        self._create_2d_view_area(v_splitter)
+        
+        # 设置垂直分割比例（70%:30%）
+        v_splitter.setSizes([560, 240])  # 总高度800px
+        
+        # 将垂直分割器添加到主布局
+        main_layout.addWidget(v_splitter)
+    
+    def _create_2d_view_area(self, v_splitter):
+        """创建2D视图区域"""
+        from PyQt5.QtWidgets import QFrame, QLabel, QVBoxLayout, QWidget
+        
+        # 创建2D视图框架
+        view_2d_frame = QFrame()
+        view_2d_frame.setFrameStyle(QFrame.StyledPanel | QFrame.Sunken)
+        view_2d_frame.setLineWidth(2)
+        view_2d_frame.setMinimumHeight(200)
+        
+        # 2D视图标签
+        view_2d_label = QLabel("2D切片视图")
+        view_2d_label.setAlignment(Qt.AlignCenter)
+        view_2d_label.setStyleSheet("font-weight: bold; font-size: 14px; padding: 5px;")
+        
+        # 创建2D视图布局
+        view_2d_layout = QVBoxLayout(view_2d_frame)
+        view_2d_layout.addWidget(view_2d_label)
+        
+        # 创建占位符（稍后会被VTK小部件替换）
+        self.view_2d_placeholder = QLabel("点击'显示50%位置横切面'按钮显示2D切片")
+        self.view_2d_placeholder.setAlignment(Qt.AlignCenter)
+        self.view_2d_placeholder.setStyleSheet("color: #666; font-style: italic; padding: 20px;")
+        view_2d_layout.addWidget(self.view_2d_placeholder)
+        
+        # 保存2D视图框架引用
+        self.ui_components['view_2d_frame'] = view_2d_frame
+        self.ui_components['view_2d_label'] = view_2d_label
+        
+        # 将2D视图框架添加到垂直分割器的下部
+        v_splitter.addWidget(view_2d_frame)
     
     def create_status_bar(self):
         """创建状态栏"""

@@ -257,14 +257,18 @@ class UIComponents:
         """
         创建主布局结构
         
-        @returns {tuple} (h_splitter, left_widget, left_layout, right_widget, right_layout)
-        @returns {QSplitter} h_splitter - 水平分割器
+        @returns {tuple} (v_splitter, h_splitter, left_widget, left_layout, right_widget, right_layout)
+        @returns {QSplitter} v_splitter - 垂直分割器（主分割器）
+        @returns {QSplitter} h_splitter - 水平分割器（上部分割器）
         @returns {QWidget} left_widget - 左侧部件（3D视图区域）
         @returns {QVBoxLayout} left_layout - 左侧布局
         @returns {QWidget} right_widget - 右侧部件（信息面板区域）
         @returns {QVBoxLayout} right_layout - 右侧布局
         """
-        # 创建水平分割器（左侧3D视图，右侧信息面板）
+        # 创建垂直分割器（上部：3D视图+控制面板，下部：2D图像）
+        v_splitter = QSplitter(Qt.Vertical)
+        
+        # 创建上部水平分割器（左侧3D视图，右侧信息面板）
         h_splitter = QSplitter(Qt.Horizontal)
         
         # 左侧：3D视图区域
@@ -277,4 +281,7 @@ class UIComponents:
         right_layout = QVBoxLayout(right_widget)
         right_layout.setContentsMargins(10, 10, 10, 10)
         
-        return h_splitter, left_widget, left_layout, right_widget, right_layout
+        # 将水平分割器添加到垂直分割器的上部
+        v_splitter.addWidget(h_splitter)
+        
+        return v_splitter, h_splitter, left_widget, left_layout, right_widget, right_layout

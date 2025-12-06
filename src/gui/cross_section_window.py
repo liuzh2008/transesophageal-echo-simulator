@@ -362,3 +362,210 @@ def create_cross_section_window(image_data, normal_vector, cut_position, parent=
     
     print(f"[DEBUG] 2D切片窗口已显示，标题: {window.windowTitle()}")
     return window
+
+
+def create_embedded_2d_view(image_data, normal_vector, cut_position, parent_widget):
+    """
+    创建内嵌的2D视图小部件（用于在主窗口中显示）
+    
+    参数:
+        image_data: vtk.vtkImageData - 3D体积数据
+        normal_vector: tuple - 切割平面法线向量 (nx, ny, nz)
+        cut_position: float - 切割位置（百分比）
+        parent_widget: QWidget - 父窗口部件
+        
+    返回:
+        QVTKRenderWindowInteractor - 包含2D切片渲染的VTK小部件，或None（如果创建失败）
+    """
+    if not VTK_AVAILABLE or image_data is None:
+        return None
+    
+    try:
+        # 创建VTK小部件
+        vtk_widget = QVTKRenderWindowInteractor(parent_widget)
+        
+        # 创建2D切片渲染器（使用CrossSectionWindow的相同逻辑）
+        renderer = _create_slice_renderer_internal(image_data, normal_vector, cut_position)
+        
+        if renderer is not None:
+            # 添加渲染器到VTK窗口
+            vtk_widget.GetRenderWindow().AddRenderer(renderer)
+            
+            # 开始交互
+            vtk_widget.Initialize()
+            vtk_widget.Start()
+            
+            # 渲染窗口
+            vtk_widget.GetRenderWindow().Render()
+            
+            return vtk_widget
+        else:
+            return None
+            
+    except Exception as e:
+        warnings.warn(f"创建内嵌2D视图失败: {e}")
+        return None
+
+
+def _create_slice_renderer_internal(image_data, normal_vector, cut_position):
+    """
+    内部函数：创建2D切片渲染器（从CrossSectionWindow类中提取的逻辑）
+    
+    参数:
+        image_data: vtk.vtkImageData - 3D体积数据
+        normal_vector: tuple - 切割平面法线向量
+        cut_position: float - 切割位置
+        
+    返回:
+        vtkRenderer对象或None
+    """
+    if not VTK_AVAILABLE or image_data is None:
+        return None
+    
+    try:
+        nx, ny, nz = normal_vector
+        
+        # 获取体积的边界框和中心点
+        bounds = image_data.GetBounds()
+        center = [
+            (bounds[0] + bounds[1]) / 2,
+            (bounds[2] + bounds[3]) / 2,
+            (bounds[4] + bounds[5]) / 2
+        ]
+        
+        # 创建切片提取器
+        reslice = vtk.vtkImageReslice()
+        reslice.SetInputData(image_data)
+        reslice.SetOutputDimensionality(2)
+        
+        # 设置切片方向（垂直于法线向量）
+        if abs(nx) < 0.5:
+            ref_vector = (1, 0, 0)
+        else:
+            ref_vector = (0, 1, 0)
+        
+        # 计算X轴（与法线向量正交）
+        ref_x, ref_y, ref_z = ref_vector
+        x_axis = (
+            ref_y * nz - ref_z * ny,
+            ref_z * nx - ref_x * nz,
+            ref_x * ny - ref_y * nx
+        )
+        
+        # 计算向量长度
+        x_length = math.sqrt(x_axis[0]**2 + x_axis[1]**2 + x_axis[2]**2)
+        
+        if x_length < 0.001:
+            # 如果叉积太小，尝试另一个参考向量
+            ref_vector = (0, 0, 1)
+            ref_x, ref_y, ref_z = ref_vector
+            x_axis = (
+                ref_y * nz - ref_z * ny,
+                ref_z * nx - ref_x * nz,
+                ref_x * ny - ref_y * nx
+            )
+            x_length = math.sqrt(x_axis[0]**2 + x_axis[1]**2 + x_axis[2]**2)
+        
+        # 归一化X轴
+        if x_length > 0:
+            x_axis = (x_axis[0]/x_length, x_axis[1]/x_length, x_axis[2]/x_length)
+        
+        # 计算Y轴
+        y_axis = (
+            ny * x_axis[2] - nz * x_axis[1],
+            nz * x_axis[0] - nx * x_axis[2],
+            nx * x_axis[1] - ny * x_axis[0]
+        )
+        
+        y_length = math.sqrt(y_axis[0]**2 + y_axis[1]**2 + y_axis[2]**2)
+        if y_length > 0:
+            y_axis = (y_axis[0]/y_length, y_axis[1]/y_length, y_axis[2]/y_length)
+        
+        # 设置方向余弦矩阵
+        reslice.SetResliceAxesDirectionCosines(
+            x_axis[0], x_axis[1], x_axis[2],
+            y_axis[0], y_axis[1], y_axis[2],
+            nx, ny, nz
+        )
+        
+        # 设置切片原点为中心点
+        reslice.SetResliceAxesOrigin(center[0], center[1], center[2])
+        reslice.SetInterpolationModeToLinear()
+        
+        # 创建图像映射器
+        image_mapper = vtk.vtkImageMapper()
+        image_mapper.SetInputConnection(reslice.GetOutputPort())
+        
+        # 获取图像数据范围以设置合适的颜色窗口和级别
+        reslice.Update()
+        output = reslice.GetOutput()
+        if output:
+            scalar_range = output.GetScalarRange()
+            min_val, max_val = scalar_range
+            
+            # 根据数据范围设置颜色窗口和级别
+            if max_val - min_val > 0:
+                if max_val <= 1.0 and min_val >= 0.0:
+                    # 数据已经归一化
+                    window = 1.0
+                    level = 0.5
+                else:
+                    # 使用数据实际范围
+                    window = max_val - min_val
+                    level = (max_val + min_val) / 2
+                
+                image_mapper.SetColorWindow(window)
+                image_mapper.SetColorLevel(level)
+            else:
+                # 默认值 - 适合医学图像的典型设置
+                image_mapper.SetColorWindow(400)
+                image_mapper.SetColorLevel(40)
+        else:
+            # 默认值 - 适合医学图像的典型设置
+            image_mapper.SetColorWindow(400)
+            image_mapper.SetColorLevel(40)
+        
+        # 创建2D Actor
+        image_actor = vtk.vtkActor2D()
+        image_actor.SetMapper(image_mapper)
+        
+        # 创建渲染器
+        renderer = vtk.vtkRenderer()
+        renderer.AddActor2D(image_actor)
+        renderer.SetBackground(0.2, 0.2, 0.3)  # 深蓝色背景
+        
+        # 添加文本标注
+        text_actor = vtk.vtkTextActor()
+        text_actor.SetInput(f"2D切片视图\n法线: ({nx:.2f}, {ny:.2f}, {nz:.2f})\n位置: {cut_position}")
+        text_actor.GetTextProperty().SetFontSize(14)
+        text_actor.GetTextProperty().SetColor(1, 1, 1)  # 白色文字
+        text_actor.GetTextProperty().SetBackgroundColor(0, 0, 0)  # 黑色背景
+        text_actor.GetTextProperty().SetBackgroundOpacity(0.7)
+        text_actor.SetPosition(20, 20)
+        renderer.AddActor2D(text_actor)
+        
+        # 设置相机为正交投影
+        camera = renderer.GetActiveCamera()
+        camera.ParallelProjectionOn()
+        
+        # 获取图像边界
+        reslice.Update()
+        output = reslice.GetOutput()
+        if output:
+            bounds = output.GetBounds()
+            width = max(bounds[1] - bounds[0], bounds[3] - bounds[2]) * 1.2
+            if width > 0:
+                camera.SetParallelScale(width / 2)
+        
+        # 设置相机位置
+        camera.SetPosition(0, 0, 1000)
+        camera.SetFocalPoint(0, 0, 0)
+        camera.SetViewUp(0, 1, 0)
+        
+        return renderer
+        
+    except Exception as e:
+        print(f"[DEBUG] 创建2D切片渲染器失败: {e}")
+        import traceback
+        traceback.print_exc()
+        return None

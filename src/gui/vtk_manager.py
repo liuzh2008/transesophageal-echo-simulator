@@ -236,13 +236,13 @@ class VTKManager:
         self.renderer.ResetCamera()
         self.vtk_widget.GetRenderWindow().Render()
     
-    def show_cut_plane(self, position_percent=0.5, normal=(0, 0, 1), show_2d_window=True):
+    def show_cut_plane(self, position_percent=0.5, normal=(0, 0, 1), show_2d_window=False):
         """显示切割平面（红色线条+浅红色填充）
         
         参数:
             position_percent: 切割位置百分比 (0.0-1.0)，0.5表示50%位置
             normal: 平面法线向量，默认垂直于Z轴
-            show_2d_window: 是否显示2D切片窗口
+            show_2d_window: 是否显示2D切片窗口（独立窗口），默认为False（在主窗口中显示）
         """
         if not VTK_AVAILABLE or self.renderer is None:
             return False
@@ -271,9 +271,9 @@ class VTKManager:
                 # 重新渲染
                 self.vtk_widget.GetRenderWindow().Render()
                 
-                # 显示2D切片窗口（如果启用）
+                # 显示2D切片窗口（如果启用，显示为独立窗口）
                 if show_2d_window:
-                    self.show_cross_section_window(position_percent, normal)
+                    self.show_cross_section_window(position_percent, normal, embedded=False)
                 
                 return True
             else:
@@ -286,33 +286,41 @@ class VTKManager:
             traceback.print_exc()
             return False
     
-    def show_cross_section_window(self, cut_position, normal_vector=None):
+    def show_cross_section_window(self, cut_position, normal_vector=None, embedded=False, parent_widget=None):
         """
         显示2D切片窗口（垂直于切割平面的2D切片图像）
         
         功能说明:
-            创建并显示一个独立的2D切片窗口，显示垂直于切割平面的DICOM切片图像。
+            创建并显示2D切片图像，可以选择显示为独立窗口或嵌入到主窗口中。
             此方法严格按照示例代码中的实现方式，使用vtkImageReslice提取2D切片。
         
         请求参数:
             cut_position: float - 切割位置（百分比），0.0-1.0之间，0.5表示50%位置
             normal_vector: tuple (可选) - 平面法线向量 (nx, ny, nz)，默认(0, 0, 1)垂直于Z轴
+            embedded: bool (可选) - 是否嵌入到主窗口中显示，默认为False（独立窗口）
+            parent_widget: QWidget (可选) - 父窗口部件（当embedded=True时需要）
         
         响应格式:
-            CrossSectionWindow 或 None - 创建的2D切片窗口实例，如果创建失败则返回None
+            如果embedded=False: CrossSectionWindow - 创建的2D切片窗口实例
+            如果embedded=True: QVTKRenderWindowInteractor - 包含2D切片渲染的VTK小部件
+            如果创建失败则返回None
         
         逻辑:
             1. 检查VTK可用性
             2. 从volume_renderer获取VTK图像数据
-            3. 调用cross_section_window.create_cross_section_window创建窗口
-            4. 保存窗口引用避免被垃圾回收
-            5. 返回窗口实例
+            3. 根据embedded参数选择创建独立窗口或内嵌小部件
+            4. 保存引用避免被垃圾回收
+            5. 返回创建的窗口或小部件
         
         响应示例:
             >>> vtk_manager = VTKManager()
+            >>> # 创建独立窗口
             >>> window = vtk_manager.show_cross_section_window(0.5, (0, 0, 1))
             >>> print(window.windowTitle())
             "2D切片视图 - 法线: (0, 0, 1)"
+            
+            >>> # 创建内嵌小部件
+            >>> widget = vtk_manager.show_cross_section_window(0.5, (0, 0, 1), embedded=True, parent_widget=main_window)
         
         相关文件:
             src/gui/vtk_manager.py
@@ -321,7 +329,7 @@ class VTKManager:
         
         注意事项:
             - 此方法依赖于VTK库和volume_renderer模块
-            - 窗口作为独立窗口显示，支持多个切片窗口同时查看
+            - 当embedded=True时，需要提供parent_widget参数
             - 使用正交投影相机，保持图像比例不变
             - 自动调整颜色窗口/级别以适应医学图像显示
         """
@@ -342,23 +350,44 @@ class VTKManager:
                 return None
             
             # 导入2D切片窗口模块
-            from .cross_section_window import create_cross_section_window
+            from .cross_section_window import create_cross_section_window, create_embedded_2d_view
             
-            # 创建并显示2D切片窗口
-            window = create_cross_section_window(
-                image_data=vtk_image_data,
-                normal_vector=normal_vector if normal_vector is not None else (0, 0, 1),
-                cut_position=cut_position,
-                parent=self.parent_widget
-            )
-            
-            # 保存窗口引用，避免被垃圾回收
-            if not hasattr(self, '_cross_section_windows'):
-                self._cross_section_windows = []
-            self._cross_section_windows.append(window)
-            
-            print(f"[DEBUG] 2D切片窗口已创建并显示，窗口总数: {len(self._cross_section_windows)}")
-            return window
+            if embedded:
+                # 创建内嵌的2D视图小部件
+                if parent_widget is None:
+                    print("警告: embedded=True时需要提供parent_widget参数")
+                    return None
+                
+                widget = create_embedded_2d_view(
+                    image_data=vtk_image_data,
+                    normal_vector=normal_vector if normal_vector is not None else (0, 0, 1),
+                    cut_position=cut_position,
+                    parent_widget=parent_widget
+                )
+                
+                # 保存小部件引用
+                if not hasattr(self, '_embedded_2d_widgets'):
+                    self._embedded_2d_widgets = []
+                self._embedded_2d_widgets.append(widget)
+                
+                print(f"[DEBUG] 内嵌2D视图小部件已创建，小部件总数: {len(self._embedded_2d_widgets)}")
+                return widget
+            else:
+                # 创建独立的2D切片窗口
+                window = create_cross_section_window(
+                    image_data=vtk_image_data,
+                    normal_vector=normal_vector if normal_vector is not None else (0, 0, 1),
+                    cut_position=cut_position,
+                    parent=self.parent_widget
+                )
+                
+                # 保存窗口引用，避免被垃圾回收
+                if not hasattr(self, '_cross_section_windows'):
+                    self._cross_section_windows = []
+                self._cross_section_windows.append(window)
+                
+                print(f"[DEBUG] 2D切片窗口已创建并显示，窗口总数: {len(self._cross_section_windows)}")
+                return window
             
         except ImportError as e:
             print(f"警告: 无法导入cross_section_window模块: {e}")
