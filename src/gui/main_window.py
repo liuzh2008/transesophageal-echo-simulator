@@ -242,3 +242,9 @@ class MainWindow(QMainWindow):
         if 'cut_plane_button' in self.ui_components:
             self.ui_components['cut_plane_button'].clicked.connect(
                 self.event_handlers.handle_show_cut_plane)
+        
+        # 连接扇形顶点偏移滑动条
+        for slider_key in ['fan_apex_x_slider', 'fan_apex_y_slider', 'fan_apex_z_slider']:
+            if slider_key in self.ui_components:
+                self.ui_components[slider_key].valueChanged.connect(
+                    self.event_handlers.handle_fan_apex_offset_changed)

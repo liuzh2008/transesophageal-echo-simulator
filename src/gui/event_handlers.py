@@ -102,6 +102,65 @@ class EventHandlers:
         
         QMessageBox.about(self.main_window, "关于", about_text)
     
+    def handle_fan_apex_offset_changed(self):
+        """处理扇形顶点偏移滑动条变化事件"""
+        # 从UI读取滑动条值
+        offset_x_val = 0
+        offset_y_val = 0
+        offset_z_val = 0
+        
+        if 'fan_apex_x_slider' in self.main_window.ui_components:
+            offset_x_val = self.main_window.ui_components['fan_apex_x_slider'].value()
+        if 'fan_apex_y_slider' in self.main_window.ui_components:
+            offset_y_val = self.main_window.ui_components['fan_apex_y_slider'].value()
+        if 'fan_apex_z_slider' in self.main_window.ui_components:
+            offset_z_val = self.main_window.ui_components['fan_apex_z_slider'].value()
+        
+        # 转换为 -1.0 ~ 1.0
+        offset_x = offset_x_val / 100.0
+        offset_y = offset_y_val / 100.0
+        offset_z = offset_z_val / 100.0
+        
+        # 更新标签
+        if 'fan_apex_x_label' in self.main_window.ui_components:
+            self.main_window.ui_components['fan_apex_x_label'].setText(f"X偏移: {offset_x:.2f}")
+        if 'fan_apex_y_label' in self.main_window.ui_components:
+            self.main_window.ui_components['fan_apex_y_label'].setText(f"Y偏移: {offset_y:.2f}")
+        if 'fan_apex_z_label' in self.main_window.ui_components:
+            self.main_window.ui_components['fan_apex_z_label'].setText(f"Z偏移: {offset_z:.2f}")
+        
+        # 计算物理偏移量（基于体积尺寸）
+        physical_offset_x = 0.0
+        physical_offset_y = 0.0
+        physical_offset_z = 0.0
+        
+        # 通过 volume_renderer 获取图像数据
+        image_data = None
+        if hasattr(self.vtk_manager, 'volume_renderer') and self.vtk_manager.volume_renderer is not None:
+            image_data = self.vtk_manager.volume_renderer.get_vtk_image_data()
+        if image_data is None:
+            # 尝试通过单例获取
+            from core.volume_render import get_volume_renderer
+            vr = get_volume_renderer()
+            image_data = vr.get_vtk_image_data()
+        
+        if image_data is not None:
+            bounds = image_data.GetBounds()
+            extent_x = (bounds[1] - bounds[0]) / 2.0
+            extent_y = (bounds[3] - bounds[2]) / 2.0
+            extent_z = (bounds[5] - bounds[4]) / 2.0
+            physical_offset_x = offset_x * extent_x
+            physical_offset_y = offset_y * extent_y
+            physical_offset_z = offset_z * extent_z
+            print(f"[DEBUG] 物理偏移量: x={physical_offset_x:.1f}, y={physical_offset_y:.1f}, z={physical_offset_z:.1f}")
+        
+        # 更新状态栏
+        self.main_window.statusBar().showMessage(
+            f"扇形顶点偏移: X={offset_x:.2f}, Y={offset_y:.2f}, Z={offset_z:.2f}", 2000)
+        
+        # 刷新2D视图（如果已显示）
+        self._show_2d_image_in_main_window()
+    
     def handle_show_cut_plane(self):
         """
         处理显示切割平面事件（在主窗口中显示2D图像）
@@ -159,11 +218,40 @@ class EventHandlers:
             self._update_time_label(start_time, False)
             return
         
+        # 获取扇形顶点偏移
+        fan_apex_offset_x = 0.0
+        fan_apex_offset_y = 0.0
+        fan_apex_offset_z = 0.0
+        if 'fan_apex_x_slider' in self.main_window.ui_components:
+            offset_x = self.main_window.ui_components['fan_apex_x_slider'].value() / 100.0
+            offset_y = self.main_window.ui_components['fan_apex_y_slider'].value() / 100.0
+            offset_z = self.main_window.ui_components['fan_apex_z_slider'].value() / 100.0
+            
+            # 通过 volume_renderer 获取图像数据
+            image_data = None
+            if hasattr(self.vtk_manager, 'volume_renderer') and self.vtk_manager.volume_renderer is not None:
+                image_data = self.vtk_manager.volume_renderer.get_vtk_image_data()
+            if image_data is None:
+                # 尝试通过单例获取
+                from core.volume_render import get_volume_renderer
+                vr = get_volume_renderer()
+                image_data = vr.get_vtk_image_data()
+            
+            if image_data is not None:
+                bounds = image_data.GetBounds()
+                fan_apex_offset_x = offset_x * (bounds[1] - bounds[0]) / 2.0
+                fan_apex_offset_y = offset_y * (bounds[3] - bounds[2]) / 2.0
+                fan_apex_offset_z = offset_z * (bounds[5] - bounds[4]) / 2.0
+                print(f"[DEBUG] handle_show_cut_plane 物理偏移量: x={fan_apex_offset_x:.1f}, y={fan_apex_offset_y:.1f}, z={fan_apex_offset_z:.1f}")
+        
         # 显示切割平面
         success = self.vtk_manager.show_cut_plane(
             position_percent=0.5,  # 50%位置
             normal=(0, 0, 1),      # 垂直于Z轴
-            show_2d_window=False   # 不在新窗口中显示2D图像，而是在主窗口中显示
+            show_2d_window=False,  # 不在新窗口中显示2D图像，而是在主窗口中显示
+            fan_apex_offset_x=fan_apex_offset_x,
+            fan_apex_offset_y=fan_apex_offset_y,
+            fan_apex_offset_z=fan_apex_offset_z
         )
         
         if success:
@@ -264,12 +352,41 @@ class EventHandlers:
                 print("警告: 无法获取VTK图像数据")
                 return
             
+            # 获取扇形顶点偏移
+            fan_apex_offset_x = 0.0
+            fan_apex_offset_y = 0.0
+            fan_apex_offset_z = 0.0
+            if 'fan_apex_x_slider' in self.main_window.ui_components:
+                offset_x = self.main_window.ui_components['fan_apex_x_slider'].value() / 100.0
+                offset_y = self.main_window.ui_components['fan_apex_y_slider'].value() / 100.0
+                offset_z = self.main_window.ui_components['fan_apex_z_slider'].value() / 100.0
+                
+                # 通过 volume_renderer 获取图像数据
+                image_data = None
+                if hasattr(self.vtk_manager, 'volume_renderer') and self.vtk_manager.volume_renderer is not None:
+                    image_data = self.vtk_manager.volume_renderer.get_vtk_image_data()
+                if image_data is None:
+                    # 尝试通过单例获取
+                    from core.volume_render import get_volume_renderer
+                    vr = get_volume_renderer()
+                    image_data = vr.get_vtk_image_data()
+                
+                if image_data is not None:
+                    bounds = image_data.GetBounds()
+                    fan_apex_offset_x = offset_x * (bounds[1] - bounds[0]) / 2.0
+                    fan_apex_offset_y = offset_y * (bounds[3] - bounds[2]) / 2.0
+                    fan_apex_offset_z = offset_z * (bounds[5] - bounds[4]) / 2.0
+                    print(f"[DEBUG] _show_2d_image_in_main_window 物理偏移量: x={fan_apex_offset_x:.1f}, y={fan_apex_offset_y:.1f}, z={fan_apex_offset_z:.1f}")
+            
             # 创建2D视图小部件
             vtk_widget = create_embedded_2d_view(
                 image_data=vtk_image_data,
                 normal_vector=(0, 0, 1),  # 垂直于Z轴
                 cut_position=0.5,         # 50%位置
-                parent_widget=view_2d_frame
+                parent_widget=view_2d_frame,
+                fan_apex_offset_x=fan_apex_offset_x,
+                fan_apex_offset_y=fan_apex_offset_y,
+                fan_apex_offset_z=fan_apex_offset_z
             )
             
             if vtk_widget is not None:

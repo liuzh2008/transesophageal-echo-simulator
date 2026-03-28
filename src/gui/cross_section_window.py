@@ -23,7 +23,8 @@ class CrossSectionWindow(QMainWindow):
     """2D截面窗口 - 显示垂直于切割平面的2D切片图像"""
     
     def __init__(self, image_data, normal_vector, cut_position, parent=None,
-                 plane_origin=None, plane_x_axis=None, plane_y_axis=None):
+                 plane_origin=None, plane_x_axis=None, plane_y_axis=None,
+                 fan_apex_offset_x=0.0, fan_apex_offset_y=0.0, fan_apex_offset_z=0.0):
         """
         初始化2D截面窗口
         
@@ -35,6 +36,9 @@ class CrossSectionWindow(QMainWindow):
             plane_origin: 平面原点 (x, y, z)，用于精确定位切割位置（可选）
             plane_x_axis: 平面X轴方向 (归一化向量)（可选）
             plane_y_axis: 平面Y轴方向 (归一化向量)（可选）
+            fan_apex_offset_x: 扇形顶点X方向偏移（基于切片局部坐标系）
+            fan_apex_offset_y: 扇形顶点Y方向偏移（基于切片局部坐标系）
+            fan_apex_offset_z: 扇形顶点Z方向偏移（基于切片局部坐标系）
         """
         super().__init__(parent)
         
@@ -46,6 +50,11 @@ class CrossSectionWindow(QMainWindow):
         self.plane_origin = plane_origin
         self.plane_x_axis = plane_x_axis
         self.plane_y_axis = plane_y_axis
+        
+        # 存储扇形顶点偏移参数
+        self.fan_apex_offset_x = fan_apex_offset_x
+        self.fan_apex_offset_y = fan_apex_offset_y
+        self.fan_apex_offset_z = fan_apex_offset_z
         
         # 窗口设置
         self.setWindowTitle(f"2D切片视图 - 法线: {normal_vector}")
@@ -189,6 +198,12 @@ class CrossSectionWindow(QMainWindow):
                 
                 print(f"[DEBUG] 计算的切片X轴: ({x_axis[0]:.3f}, {x_axis[1]:.3f}, {x_axis[2]:.3f})")
                 print(f"[DEBUG] 计算的切片Y轴: ({y_axis[0]:.3f}, {y_axis[1]:.3f}, {y_axis[2]:.3f})")
+            
+            # 应用扇形顶点偏移（基于切片局部坐标系）
+            center[0] += self.fan_apex_offset_x * x_axis[0] + self.fan_apex_offset_y * y_axis[0] + self.fan_apex_offset_z * nx
+            center[1] += self.fan_apex_offset_x * x_axis[1] + self.fan_apex_offset_y * y_axis[1] + self.fan_apex_offset_z * ny
+            center[2] += self.fan_apex_offset_x * x_axis[2] + self.fan_apex_offset_y * y_axis[2] + self.fan_apex_offset_z * nz
+            print(f"[DEBUG] 应用扇形顶点偏移后的中心: ({center[0]:.1f}, {center[1]:.1f}, {center[2]:.1f})")
             
             # =====================================================
             # TEE扇形视图处理 - 直接从3D体积采样
@@ -562,7 +577,8 @@ class CrossSectionWindow(QMainWindow):
 
 
 def create_cross_section_window(image_data, normal_vector, cut_position, parent=None,
-                                plane_origin=None, plane_x_axis=None, plane_y_axis=None):
+                                plane_origin=None, plane_x_axis=None, plane_y_axis=None,
+                                fan_apex_offset_x=0.0, fan_apex_offset_y=0.0, fan_apex_offset_z=0.0):
     """
     创建并显示2D切片窗口的便捷函数
     
@@ -574,6 +590,9 @@ def create_cross_section_window(image_data, normal_vector, cut_position, parent=
         plane_origin: tuple (可选) - 平面原点 (x, y, z)，用于精确定位切割位置
         plane_x_axis: tuple (可选) - 平面X轴方向 (归一化向量)
         plane_y_axis: tuple (可选) - 平面Y轴方向 (归一化向量)
+        fan_apex_offset_x: 扇形顶点X方向偏移（基于切片局部坐标系）
+        fan_apex_offset_y: 扇形顶点Y方向偏移（基于切片局部坐标系）
+        fan_apex_offset_z: 扇形顶点Z方向偏移（基于切片局部坐标系）
         
     返回:
         CrossSectionWindow - 创建的2D切片窗口实例
@@ -598,7 +617,10 @@ def create_cross_section_window(image_data, normal_vector, cut_position, parent=
         image_data, normal_vector, cut_position, parent,
         plane_origin=plane_origin,
         plane_x_axis=plane_x_axis,
-        plane_y_axis=plane_y_axis
+        plane_y_axis=plane_y_axis,
+        fan_apex_offset_x=fan_apex_offset_x,
+        fan_apex_offset_y=fan_apex_offset_y,
+        fan_apex_offset_z=fan_apex_offset_z
     )
     
     # 确保窗口作为独立窗口显示
@@ -614,7 +636,8 @@ def create_cross_section_window(image_data, normal_vector, cut_position, parent=
 
 
 def create_embedded_2d_view(image_data, normal_vector, cut_position, parent_widget,
-                            plane_origin=None, plane_x_axis=None, plane_y_axis=None):
+                            plane_origin=None, plane_x_axis=None, plane_y_axis=None,
+                            fan_apex_offset_x=0.0, fan_apex_offset_y=0.0, fan_apex_offset_z=0.0):
     """
     创建内嵌的2D视图小部件（用于在主窗口中显示）
     
@@ -626,6 +649,9 @@ def create_embedded_2d_view(image_data, normal_vector, cut_position, parent_widg
         plane_origin: tuple (可选) - 平面原点 (x, y, z)，用于精确定位切割位置
         plane_x_axis: tuple (可选) - 平面X轴方向 (归一化向量)
         plane_y_axis: tuple (可选) - 平面Y轴方向 (归一化向量)
+        fan_apex_offset_x: 扇形顶点X方向偏移（基于切片局部坐标系）
+        fan_apex_offset_y: 扇形顶点Y方向偏移（基于切片局部坐标系）
+        fan_apex_offset_z: 扇形顶点Z方向偏移（基于切片局部坐标系）
         
     返回:
         QVTKRenderWindowInteractor - 包含2D切片渲染的VTK小部件，或None（如果创建失败）
@@ -642,7 +668,10 @@ def create_embedded_2d_view(image_data, normal_vector, cut_position, parent_widg
             image_data, normal_vector, cut_position,
             plane_origin=plane_origin,
             plane_x_axis=plane_x_axis,
-            plane_y_axis=plane_y_axis
+            plane_y_axis=plane_y_axis,
+            fan_apex_offset_x=fan_apex_offset_x,
+            fan_apex_offset_y=fan_apex_offset_y,
+            fan_apex_offset_z=fan_apex_offset_z
         )
         
         if renderer is not None:
@@ -666,7 +695,8 @@ def create_embedded_2d_view(image_data, normal_vector, cut_position, parent_widg
 
 
 def _create_slice_renderer_internal(image_data, normal_vector, cut_position,
-                                     plane_origin=None, plane_x_axis=None, plane_y_axis=None):
+                                     plane_origin=None, plane_x_axis=None, plane_y_axis=None,
+                                     fan_apex_offset_x=0.0, fan_apex_offset_y=0.0, fan_apex_offset_z=0.0):
     """
     内部函数：创建2D切片渲染器 - 直接从3D体积数据扇形采样
     
@@ -677,6 +707,9 @@ def _create_slice_renderer_internal(image_data, normal_vector, cut_position,
         plane_origin: tuple (可选) - 平面原点 (x, y, z)，用于精确定位切割位置
         plane_x_axis: tuple (可选) - 平面X轴方向 (归一化向量)
         plane_y_axis: tuple (可选) - 平面Y轴方向 (归一化向量)
+        fan_apex_offset_x: 扇形顶点X方向偏移（基于切片局部坐标系）
+        fan_apex_offset_y: 扇形顶点Y方向偏移（基于切片局部坐标系）
+        fan_apex_offset_z: 扇形顶点Z方向偏移（基于切片局部坐标系）
         
     返回:
         vtkRenderer对象或None
@@ -756,6 +789,12 @@ def _create_slice_renderer_internal(image_data, normal_vector, cut_position,
             
             print(f"[DEBUG] _create_slice_renderer_internal 计算的X轴: ({x_axis[0]:.3f}, {x_axis[1]:.3f}, {x_axis[2]:.3f})")
             print(f"[DEBUG] _create_slice_renderer_internal 计算的Y轴: ({y_axis[0]:.3f}, {y_axis[1]:.3f}, {y_axis[2]:.3f})")
+        
+        # 应用扇形顶点偏移（基于切片局部坐标系）
+        center[0] += fan_apex_offset_x * x_axis[0] + fan_apex_offset_y * y_axis[0] + fan_apex_offset_z * nx
+        center[1] += fan_apex_offset_x * x_axis[1] + fan_apex_offset_y * y_axis[1] + fan_apex_offset_z * ny
+        center[2] += fan_apex_offset_x * x_axis[2] + fan_apex_offset_y * y_axis[2] + fan_apex_offset_z * nz
+        print(f"[DEBUG] _create_slice_renderer_internal 应用偏移后的中心: ({center[0]:.1f}, {center[1]:.1f}, {center[2]:.1f})")
         
         # =====================================================
         # TEE扇形视图处理 - 直接从3D体积采样

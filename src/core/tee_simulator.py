@@ -27,6 +27,9 @@ class TEESimulator:
         # 超声参数（保留用于参考）
         self.ultrasound_angle: float = 60.0  # 扇形角度 (度)
         self.ultrasound_radius: float = 100.0  # 扇形半径 (mm)
+        
+        # 扇形顶点偏移（基于切片局部坐标系）
+        self.fan_apex_offset: Tuple[float, float, float] = (0.0, 0.0, 0.0)
     
     def set_heart_model(self, center: Tuple[float, float, float], radius: float = 50.0):
         """设置心脏模型参数"""
@@ -69,13 +72,28 @@ class TEESimulator:
         
         return (nx, ny, nz)
     
+    def set_fan_apex_offset(self, offset_x: float, offset_y: float, offset_z: float):
+        """设置扇形顶点偏移量（基于切片局部坐标系）
+        
+        参数:
+            offset_x: X轴偏移（沿切片局部X轴）
+            offset_y: Y轴偏移（沿切片局部Y轴）
+            offset_z: Z轴偏移（沿切片法线方向）
+        """
+        self.fan_apex_offset = (offset_x, offset_y, offset_z)
+    
+    def get_fan_apex_offset(self) -> Tuple[float, float, float]:
+        """获取扇形顶点偏移量"""
+        return self.fan_apex_offset
+    
     def get_info(self) -> Dict[str, Any]:
         """获取模拟器信息"""
         return {
             'heart_center': self.heart_center,
             'heart_radius': self.heart_radius,
             'ultrasound_angle': self.ultrasound_angle,
-            'ultrasound_radius': self.ultrasound_radius
+            'ultrasound_radius': self.ultrasound_radius,
+            'fan_apex_offset': self.fan_apex_offset
         }
     
     def clear(self):

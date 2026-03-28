@@ -245,13 +245,17 @@ class VTKManager:
         self.renderer.ResetCamera()
         self.vtk_widget.GetRenderWindow().Render()
     
-    def show_cut_plane(self, position_percent=0.5, normal=(0, 0, 1), show_2d_window=False):
+    def show_cut_plane(self, position_percent=0.5, normal=(0, 0, 1), show_2d_window=False,
+                       fan_apex_offset_x=0.0, fan_apex_offset_y=0.0, fan_apex_offset_z=0.0):
         """显示切割平面（红色线条+浅红色填充）
         
         参数:
             position_percent: 切割位置百分比 (0.0-1.0)，0.5表示50%位置
             normal: 平面法线向量，默认垂直于Z轴
             show_2d_window: 是否显示2D切片窗口（独立窗口），默认为False（在主窗口中显示）
+            fan_apex_offset_x: 扇形顶点X轴偏移量
+            fan_apex_offset_y: 扇形顶点Y轴偏移量
+            fan_apex_offset_z: 扇形顶点Z轴偏移量
         """
         if not VTK_AVAILABLE or self.renderer is None:
             return False
@@ -293,7 +297,10 @@ class VTKManager:
                         position_percent, normal, embedded=False,
                         plane_origin=plane_origin,
                         plane_x_axis=plane_x_axis,
-                        plane_y_axis=plane_y_axis
+                        plane_y_axis=plane_y_axis,
+                        fan_apex_offset_x=fan_apex_offset_x,
+                        fan_apex_offset_y=fan_apex_offset_y,
+                        fan_apex_offset_z=fan_apex_offset_z
                     )
                 
                 return True
@@ -308,7 +315,8 @@ class VTKManager:
             return False
     
     def show_cross_section_window(self, cut_position, normal_vector=None, embedded=False, parent_widget=None,
-                                   plane_origin=None, plane_x_axis=None, plane_y_axis=None):
+                                   plane_origin=None, plane_x_axis=None, plane_y_axis=None,
+                                   fan_apex_offset_x=0.0, fan_apex_offset_y=0.0, fan_apex_offset_z=0.0):
         """
         显示2D切片窗口（垂直于切割平面的2D切片图像）
         
@@ -324,6 +332,9 @@ class VTKManager:
             plane_origin: tuple (可选) - 平面原点 (x, y, z)，用于精确定位切割位置
             plane_x_axis: tuple (可选) - 平面X轴方向 (归一化向量)
             plane_y_axis: tuple (可选) - 平面Y轴方向 (归一化向量)
+            fan_apex_offset_x: float (可选) - 扇形顶点X轴偏移量，默认为0.0
+            fan_apex_offset_y: float (可选) - 扇形顶点Y轴偏移量，默认为0.0
+            fan_apex_offset_z: float (可选) - 扇形顶点Z轴偏移量，默认为0.0
         
         响应格式:
             如果embedded=False: CrossSectionWindow - 创建的2D切片窗口实例
@@ -390,7 +401,10 @@ class VTKManager:
                     parent_widget=parent_widget,
                     plane_origin=plane_origin,
                     plane_x_axis=plane_x_axis,
-                    plane_y_axis=plane_y_axis
+                    plane_y_axis=plane_y_axis,
+                    fan_apex_offset_x=fan_apex_offset_x,
+                    fan_apex_offset_y=fan_apex_offset_y,
+                    fan_apex_offset_z=fan_apex_offset_z
                 )
                 
                 # 保存小部件引用
@@ -409,7 +423,10 @@ class VTKManager:
                     parent=self.parent_widget,
                     plane_origin=plane_origin,
                     plane_x_axis=plane_x_axis,
-                    plane_y_axis=plane_y_axis
+                    plane_y_axis=plane_y_axis,
+                    fan_apex_offset_x=fan_apex_offset_x,
+                    fan_apex_offset_y=fan_apex_offset_y,
+                    fan_apex_offset_z=fan_apex_offset_z
                 )
                 
                 # 保存窗口引用，避免被垃圾回收

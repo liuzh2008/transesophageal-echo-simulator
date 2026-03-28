@@ -239,12 +239,53 @@ class UIComponents:
         
         layout.addLayout(cut_plane_layout)
         
+        # 添加分隔线
+        layout.addWidget(UIComponents._create_separator())
+        
+        # 扇形顶点偏移控制
+        fan_apex_label = QLabel("扇形顶点偏移:")
+        fan_apex_label.setStyleSheet("font-weight: bold; margin-top: 10px;")
+        layout.addWidget(fan_apex_label)
+        
+        # X偏移
+        fan_apex_x_label = QLabel("X偏移: 0.0")
+        layout.addWidget(fan_apex_x_label)
+        
+        fan_apex_x_slider = QSlider(Qt.Horizontal)
+        fan_apex_x_slider.setRange(-100, 100)
+        fan_apex_x_slider.setValue(0)
+        layout.addWidget(fan_apex_x_slider)
+        
+        # Y偏移
+        fan_apex_y_label = QLabel("Y偏移: 0.0")
+        layout.addWidget(fan_apex_y_label)
+        
+        fan_apex_y_slider = QSlider(Qt.Horizontal)
+        fan_apex_y_slider.setRange(-100, 100)
+        fan_apex_y_slider.setValue(0)
+        layout.addWidget(fan_apex_y_slider)
+        
+        # Z偏移
+        fan_apex_z_label = QLabel("Z偏移: 0.0")
+        layout.addWidget(fan_apex_z_label)
+        
+        fan_apex_z_slider = QSlider(Qt.Horizontal)
+        fan_apex_z_slider.setRange(-100, 100)
+        fan_apex_z_slider.setValue(0)
+        layout.addWidget(fan_apex_z_slider)
+        
         return panel, {
             'view_3d_checkbox': view_3d_checkbox,
             'render_combo': render_combo,
             'opacity_slider': opacity_slider,
             'cut_plane_button': cut_plane_button,
-            'cut_plane_time_label': time_label  # 新增计时标签
+            'cut_plane_time_label': time_label,  # 新增计时标签
+            'fan_apex_x_slider': fan_apex_x_slider,
+            'fan_apex_y_slider': fan_apex_y_slider,
+            'fan_apex_z_slider': fan_apex_z_slider,
+            'fan_apex_x_label': fan_apex_x_label,
+            'fan_apex_y_label': fan_apex_y_label,
+            'fan_apex_z_label': fan_apex_z_label
         }
     
     @staticmethod

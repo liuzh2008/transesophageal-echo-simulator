@@ -42,6 +42,9 @@ class VolumeRenderer:
         
         # 超声声窗
         self.ultrasound_fan: Optional[vtk.vtkActor] = None
+        
+        # 扇形顶点偏移
+        self.fan_apex_offset: Tuple[float, float, float] = (0.0, 0.0, 0.0)
     
     def set_volume_data(self, volume_data: np.ndarray, 
                         spacing: Tuple[float, float, float] = (1.0, 1.0, 1.0),
@@ -379,6 +382,16 @@ class VolumeRenderer:
             # 只更新变换
             self._transform_ultrasound_fan()
     
+    def set_fan_apex_offset(self, offset_x: float, offset_y: float, offset_z: float):
+        """设置扇形顶点偏移量（基于切片局部坐标系）
+        
+        参数:
+            offset_x: X轴偏移（沿切片局部X轴）
+            offset_y: Y轴偏移（沿切片局部Y轴）
+            offset_z: Z轴偏移（沿切片法线方向）
+        """
+        self.fan_apex_offset = (offset_x, offset_y, offset_z)
+    
     def _numpy_to_vtk_image(self, numpy_array: np.ndarray) -> vtk.vtkImageData:
         """将numpy数组转换为VTK图像数据"""
         # 确保数组是C连续的
@@ -569,14 +582,16 @@ class VolumeRenderer:
             print("[DEBUG] VTK不可用")
             if return_data:
                 return {'cut_actor': None, 'fill_actor': None, 'cut_polydata': None, 
-                        'plane_origin': None, 'plane_x_axis': None, 'plane_y_axis': None}
+                        'plane_origin': None, 'plane_x_axis': None, 'plane_y_axis': None,
+                        'fan_apex_offset': self.fan_apex_offset}
             return (None, None)
         
         if self.volume_data is None:
             print("[DEBUG] 体积数据为空")
             if return_data:
                 return {'cut_actor': None, 'fill_actor': None, 'cut_polydata': None,
-                        'plane_origin': None, 'plane_x_axis': None, 'plane_y_axis': None}
+                        'plane_origin': None, 'plane_x_axis': None, 'plane_y_axis': None,
+                        'fan_apex_offset': self.fan_apex_offset}
             return (None, None)
         
         try:
@@ -674,7 +689,8 @@ class VolumeRenderer:
                 print("[DEBUG] 可能原因: 平面位置在体积外部，或体积数据为空")
                 if return_data:
                     return {'cut_actor': None, 'fill_actor': None, 'cut_polydata': None,
-                            'plane_origin': None, 'plane_x_axis': None, 'plane_y_axis': None}
+                            'plane_origin': None, 'plane_x_axis': None, 'plane_y_axis': None,
+                            'fan_apex_offset': self.fan_apex_offset}
                 return (None, None)
             
             # 创建红色线条切割Actor（轮廓线）
@@ -744,7 +760,8 @@ class VolumeRenderer:
                     'cut_polydata': cut_polydata,
                     'plane_origin': tuple(plane_origin),
                     'plane_x_axis': plane_x_axis,
-                    'plane_y_axis': plane_y_axis
+                    'plane_y_axis': plane_y_axis,
+                    'fan_apex_offset': self.fan_apex_offset
                 }
             else:
                 return cut_actor, fill_actor
@@ -755,7 +772,8 @@ class VolumeRenderer:
             traceback.print_exc()
             if return_data:
                 return {'cut_actor': None, 'fill_actor': None, 'cut_polydata': None,
-                        'plane_origin': None, 'plane_x_axis': None, 'plane_y_axis': None}
+                        'plane_origin': None, 'plane_x_axis': None, 'plane_y_axis': None,
+                        'fan_apex_offset': self.fan_apex_offset}
             return (None, None)
     
     def clear(self):
