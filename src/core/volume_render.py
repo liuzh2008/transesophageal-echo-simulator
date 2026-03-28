@@ -541,18 +541,24 @@ class VolumeRenderer:
                         normal: Tuple[float, float, float] = (0, 0, 1),
                         return_data: bool = False) -> Union[
                             Tuple[Optional[vtk.vtkActor], Optional[vtk.vtkActor]], 
-                            Tuple[Optional[vtk.vtkActor], Optional[vtk.vtkActor], Optional[vtk.vtkPolyData]]
+                            Dict[str, Any]
                         ]:
         """创建切割平面（红色线条+浅红色填充）
         
         参数:
             position_percent: 切割位置百分比 (0.0-1.0)，0.5表示50%位置
             normal: 平面法线向量，默认垂直于Z轴
-            return_data: 是否返回切割数据（vtkPolyData）
+            return_data: 是否返回切割数据（vtkPolyData）及平面参数
             
         返回:
             如果return_data为False: (cut_actor, fill_actor) - 红色线条Actor和浅红色填充Actor
-            如果return_data为True: (cut_actor, fill_actor, cut_polydata) - 包含切割数据
+            如果return_data为True: dict包含：
+                - cut_actor: 红色线条Actor
+                - fill_actor: 浅红色填充Actor
+                - cut_polydata: 切割数据
+                - plane_origin: 平面原点 (x, y, z)
+                - plane_x_axis: 平面X轴方向 (归一化向量)
+                - plane_y_axis: 平面Y轴方向 (归一化向量)
         """
         print(f"\n[DEBUG] 开始创建切割平面...")
         print(f"[DEBUG] VTK_AVAILABLE: {VTK_AVAILABLE}")
@@ -561,11 +567,17 @@ class VolumeRenderer:
         
         if not VTK_AVAILABLE:
             print("[DEBUG] VTK不可用")
-            return (None, None) if not return_data else (None, None, None)
+            if return_data:
+                return {'cut_actor': None, 'fill_actor': None, 'cut_polydata': None, 
+                        'plane_origin': None, 'plane_x_axis': None, 'plane_y_axis': None}
+            return (None, None)
         
         if self.volume_data is None:
             print("[DEBUG] 体积数据为空")
-            return (None, None) if not return_data else (None, None, None)
+            if return_data:
+                return {'cut_actor': None, 'fill_actor': None, 'cut_polydata': None,
+                        'plane_origin': None, 'plane_x_axis': None, 'plane_y_axis': None}
+            return (None, None)
         
         try:
             # 将numpy数组转换为VTK图像数据
@@ -608,6 +620,37 @@ class VolumeRenderer:
             
             print(f"[DEBUG] 平面原点: {plane_origin}")
             
+            # 计算平面坐标系（X轴和Y轴）
+            # 归一化法线向量
+            normal_vec = np.array([normal[0], normal[1], normal[2]], dtype=np.float64)
+            normal_length = np.linalg.norm(normal_vec)
+            if normal_length > 0:
+                normal_vec = normal_vec / normal_length
+            
+            # 选择参考向量（与法线不平行）
+            if abs(normal_vec[0]) < 0.9:
+                ref = np.array([1.0, 0.0, 0.0])
+            else:
+                ref = np.array([0.0, 1.0, 0.0])
+            
+            # 叉积计算正交坐标系
+            plane_x_axis = np.cross(ref, normal_vec)
+            x_length = np.linalg.norm(plane_x_axis)
+            if x_length > 0:
+                plane_x_axis = plane_x_axis / x_length
+            
+            plane_y_axis = np.cross(normal_vec, plane_x_axis)
+            y_length = np.linalg.norm(plane_y_axis)
+            if y_length > 0:
+                plane_y_axis = plane_y_axis / y_length
+            
+            # 转换为元组
+            plane_x_axis = tuple(plane_x_axis.tolist())
+            plane_y_axis = tuple(plane_y_axis.tolist())
+            
+            print(f"[DEBUG] 平面X轴: {plane_x_axis}")
+            print(f"[DEBUG] 平面Y轴: {plane_y_axis}")
+            
             # 创建切割平面
             plane = vtk.vtkPlane()
             plane.SetOrigin(plane_origin[0], plane_origin[1], plane_origin[2])
@@ -629,7 +672,10 @@ class VolumeRenderer:
             if num_points == 0:
                 print("[DEBUG] 警告: 切割平面未产生任何几何体")
                 print("[DEBUG] 可能原因: 平面位置在体积外部，或体积数据为空")
-                return (None, None) if not return_data else (None, None, None)
+                if return_data:
+                    return {'cut_actor': None, 'fill_actor': None, 'cut_polydata': None,
+                            'plane_origin': None, 'plane_x_axis': None, 'plane_y_axis': None}
+                return (None, None)
             
             # 创建红色线条切割Actor（轮廓线）
             cut_mapper = vtk.vtkPolyDataMapper()
@@ -691,7 +737,15 @@ class VolumeRenderer:
             print(f"[DEBUG] 切割平面创建完成")
             
             if return_data:
-                return cut_actor, fill_actor, cut_polydata
+                # 返回扩展数据：包含平面原点和坐标轴
+                return {
+                    'cut_actor': cut_actor,
+                    'fill_actor': fill_actor,
+                    'cut_polydata': cut_polydata,
+                    'plane_origin': tuple(plane_origin),
+                    'plane_x_axis': plane_x_axis,
+                    'plane_y_axis': plane_y_axis
+                }
             else:
                 return cut_actor, fill_actor
             
@@ -699,7 +753,10 @@ class VolumeRenderer:
             print(f"[DEBUG] 创建切割平面失败: {e}")
             import traceback
             traceback.print_exc()
-            return (None, None) if not return_data else (None, None, None)
+            if return_data:
+                return {'cut_actor': None, 'fill_actor': None, 'cut_polydata': None,
+                        'plane_origin': None, 'plane_x_axis': None, 'plane_y_axis': None}
+            return (None, None)
     
     def clear(self):
         """清除所有VTK对象"""

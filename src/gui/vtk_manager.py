@@ -24,6 +24,7 @@ class VTKManager:
         self.vtk_widget = None
         self.renderer = None
         self.current_actor = None
+        self._axes_actor = None  # 坐标轴Actor（只创建一次）
         
         if VTK_AVAILABLE:
             self._init_vtk()
@@ -47,6 +48,9 @@ class VTKManager:
             # 创建默认测试几何体
             self._create_test_geometry()
             
+            # 添加坐标轴（只在此处添加一次）
+            self._add_axes()
+            
             # 开始交互
             self.vtk_widget.Initialize()
             self.vtk_widget.Start()
@@ -55,6 +59,24 @@ class VTKManager:
             warnings.warn(f"初始化VTK失败: {e}")
             self.vtk_widget = None
             self.renderer = None
+    
+    def _add_axes(self, total_length=100):
+        """添加坐标轴（只创建一次，避免重复添加导致OpenGL上下文冲突）"""
+        if not VTK_AVAILABLE or self.renderer is None:
+            return
+        
+        # 如果坐标轴已存在，先移除再重新添加
+        if self._axes_actor is not None:
+            self.renderer.RemoveActor(self._axes_actor)
+        
+        try:
+            self._axes_actor = vtk.vtkAxesActor()
+            self._axes_actor.SetTotalLength(total_length, total_length, total_length)
+            self._axes_actor.SetShaftTypeToCylinder()
+            self._axes_actor.SetCylinderRadius(0.02)
+            self.renderer.AddActor(self._axes_actor)
+        except Exception as e:
+            warnings.warn(f"添加坐标轴失败: {e}")
     
     def _create_test_geometry(self):
         """创建测试几何体（一个球体）"""
@@ -82,12 +104,7 @@ class VTKManager:
             self.renderer.AddActor(actor)
             self.current_actor = actor
             
-            # 添加坐标轴
-            axes = vtk.vtkAxesActor()
-            axes.SetTotalLength(60, 60, 60)
-            axes.SetShaftTypeToCylinder()
-            axes.SetCylinderRadius(0.02)
-            self.renderer.AddActor(axes)
+            # 注意：坐标轴已在 _init_vtk 中通过 _add_axes() 统一添加，此处不再重复添加
             
             # 重置相机
             self.renderer.ResetCamera()
@@ -127,14 +144,10 @@ class VTKManager:
                 self.renderer.AddActor(volume_actor)
                 self.current_actor = volume_actor
                 
-                # 添加坐标轴
-                axes = vtk.vtkAxesActor()
-                axes.SetTotalLength(100, 100, 100)
-                axes.SetShaftTypeToCylinder()
-                axes.SetCylinderRadius(0.02)
-                self.renderer.AddActor(axes)
+                # 重新添加坐标轴（使用统一方法，避免重复创建）
+                self._add_axes()
                 
-                # 重置相机
+                # 重置相机并重新渲染
                 self.renderer.ResetCamera()
                 self.vtk_widget.GetRenderWindow().Render()
                 
@@ -182,12 +195,8 @@ class VTKManager:
                     self.renderer.AddActor(surface_actor)
                     self.current_actor = surface_actor
             
-            # 添加坐标轴
-            axes = vtk.vtkAxesActor()
-            axes.SetTotalLength(100, 100, 100)
-            axes.SetShaftTypeToCylinder()
-            axes.SetCylinderRadius(0.02)
-            self.renderer.AddActor(axes)
+            # 重新添加坐标轴（使用统一方法，避免重复创建）
+            self._add_axes()
             
             # 重置相机并重新渲染
             self.renderer.ResetCamera()
@@ -253,12 +262,19 @@ class VTKManager:
             # 获取体积渲染器
             volume_renderer = get_volume_renderer()
             
-            # 创建切割平面（获取切割数据）
-            cut_actor, fill_actor, cut_polydata = volume_renderer.create_cut_plane(
+            # 创建切割平面（获取切割数据和平面参数）
+            result = volume_renderer.create_cut_plane(
                 position_percent=position_percent, 
                 normal=normal,
-                return_data=True  # 获取切割数据用于2D窗口
+                return_data=True  # 获取切割数据和平面参数
             )
+            
+            # 从字典中提取数据
+            cut_actor = result.get('cut_actor')
+            fill_actor = result.get('fill_actor')
+            plane_origin = result.get('plane_origin')
+            plane_x_axis = result.get('plane_x_axis')
+            plane_y_axis = result.get('plane_y_axis')
             
             if cut_actor is not None:
                 # 添加红色线条切割Actor
@@ -273,7 +289,12 @@ class VTKManager:
                 
                 # 显示2D切片窗口（如果启用，显示为独立窗口）
                 if show_2d_window:
-                    self.show_cross_section_window(position_percent, normal, embedded=False)
+                    self.show_cross_section_window(
+                        position_percent, normal, embedded=False,
+                        plane_origin=plane_origin,
+                        plane_x_axis=plane_x_axis,
+                        plane_y_axis=plane_y_axis
+                    )
                 
                 return True
             else:
@@ -286,7 +307,8 @@ class VTKManager:
             traceback.print_exc()
             return False
     
-    def show_cross_section_window(self, cut_position, normal_vector=None, embedded=False, parent_widget=None):
+    def show_cross_section_window(self, cut_position, normal_vector=None, embedded=False, parent_widget=None,
+                                   plane_origin=None, plane_x_axis=None, plane_y_axis=None):
         """
         显示2D切片窗口（垂直于切割平面的2D切片图像）
         
@@ -299,6 +321,9 @@ class VTKManager:
             normal_vector: tuple (可选) - 平面法线向量 (nx, ny, nz)，默认(0, 0, 1)垂直于Z轴
             embedded: bool (可选) - 是否嵌入到主窗口中显示，默认为False（独立窗口）
             parent_widget: QWidget (可选) - 父窗口部件（当embedded=True时需要）
+            plane_origin: tuple (可选) - 平面原点 (x, y, z)，用于精确定位切割位置
+            plane_x_axis: tuple (可选) - 平面X轴方向 (归一化向量)
+            plane_y_axis: tuple (可选) - 平面Y轴方向 (归一化向量)
         
         响应格式:
             如果embedded=False: CrossSectionWindow - 创建的2D切片窗口实例
@@ -362,7 +387,10 @@ class VTKManager:
                     image_data=vtk_image_data,
                     normal_vector=normal_vector if normal_vector is not None else (0, 0, 1),
                     cut_position=cut_position,
-                    parent_widget=parent_widget
+                    parent_widget=parent_widget,
+                    plane_origin=plane_origin,
+                    plane_x_axis=plane_x_axis,
+                    plane_y_axis=plane_y_axis
                 )
                 
                 # 保存小部件引用
@@ -378,7 +406,10 @@ class VTKManager:
                     image_data=vtk_image_data,
                     normal_vector=normal_vector if normal_vector is not None else (0, 0, 1),
                     cut_position=cut_position,
-                    parent=self.parent_widget
+                    parent=self.parent_widget,
+                    plane_origin=plane_origin,
+                    plane_x_axis=plane_x_axis,
+                    plane_y_axis=plane_y_axis
                 )
                 
                 # 保存窗口引用，避免被垃圾回收
