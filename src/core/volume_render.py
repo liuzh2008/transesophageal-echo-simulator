@@ -19,6 +19,10 @@ except ImportError:
     warnings.warn("VTK库未安装，3D渲染功能将受限")
 
 
+# DEBUG 开关
+_DEBUG = False
+
+
 class VolumeRenderer:
     """3D体积渲染器"""
     
@@ -45,6 +49,12 @@ class VolumeRenderer:
         
         # 扇形顶点偏移
         self.fan_apex_offset: Tuple[float, float, float] = (0.0, 0.0, 0.0)
+        
+        # VTK图像数据缓存
+        self._vtk_image_cache = None
+        self._cache_volume_id = None
+        self._volume_np_cache = None  # 缓存 numpy reshape 后的 volume
+        self._volume_np_cache_id = None
     
     def set_volume_data(self, volume_data: np.ndarray, 
                         spacing: Tuple[float, float, float] = (1.0, 1.0, 1.0),
@@ -70,6 +80,12 @@ class VolumeRenderer:
             self.volume_data = np.expand_dims(volume_data, axis=2)
         elif volume_data.ndim != 3:
             raise ValueError(f"体积数据必须是2D或3D，但得到 {volume_data.ndim}D")
+        
+        # 缓存失效
+        self._vtk_image_cache = None
+        self._cache_volume_id = None
+        self._volume_np_cache = None
+        self._volume_np_cache_id = None
     
     def create_volume_actor(self) -> Optional[vtk.vtkVolume]:
         """创建体积渲染演员
@@ -467,15 +483,49 @@ class VolumeRenderer:
         """
         if not VTK_AVAILABLE or self.volume_data is None:
             return None
-        
         try:
-            # 将numpy数组转换为VTK图像数据
+            # 检查缓存是否有效
+            current_id = id(self.volume_data)
+            if self._vtk_image_cache is not None and self._cache_volume_id == current_id:
+                return self._vtk_image_cache
+            
+            # 缓存未命中，重新转换
             vtk_image = self._numpy_to_vtk_image(self.volume_data)
             vtk_image.SetSpacing(self.spacing)
             vtk_image.SetOrigin(self.origin)
+            
+            # 更新缓存
+            self._vtk_image_cache = vtk_image
+            self._cache_volume_id = current_id
             return vtk_image
         except Exception as e:
             warnings.warn(f"获取VTK图像数据失败: {e}")
+            return None
+    
+    def get_volume_numpy_cache(self):
+        """获取缓存的 numpy volume 数据视图，避免重复转换
+        
+        返回:
+            tuple: (volume_np, dims, spacing, origin) 或 None
+            volume_np shape 为 (Z, Y, X)
+        """
+        if self.volume_data is None:
+            return None
+        
+        try:
+            current_id = id(self.volume_data)
+            if self._volume_np_cache is not None and self._volume_np_cache_id == current_id:
+                return self._volume_np_cache
+            
+            # volume_data 的 shape 通常是 (Z, Y, X) 或类似
+            # 直接使用，不需要额外 reshape
+            dims = self.volume_data.shape
+            cache = (self.volume_data, dims, self.spacing, self.origin)
+            self._volume_np_cache = cache
+            self._volume_np_cache_id = current_id
+            return cache
+        except Exception as e:
+            warnings.warn(f"获取numpy缓存失败: {e}")
             return None
     
     def update_opacity(self, opacity_value: float):
@@ -573,13 +623,15 @@ class VolumeRenderer:
                 - plane_x_axis: 平面X轴方向 (归一化向量)
                 - plane_y_axis: 平面Y轴方向 (归一化向量)
         """
-        print(f"\n[DEBUG] 开始创建切割平面...")
-        print(f"[DEBUG] VTK_AVAILABLE: {VTK_AVAILABLE}")
-        print(f"[DEBUG] volume_data is None: {self.volume_data is None}")
-        print(f"[DEBUG] return_data: {return_data}")
+        if _DEBUG:
+            print(f"\n[DEBUG] 开始创建切割平面...")
+            print(f"[DEBUG] VTK_AVAILABLE: {VTK_AVAILABLE}")
+            print(f"[DEBUG] volume_data is None: {self.volume_data is None}")
+            print(f"[DEBUG] return_data: {return_data}")
         
         if not VTK_AVAILABLE:
-            print("[DEBUG] VTK不可用")
+            if _DEBUG:
+                print("[DEBUG] VTK不可用")
             if return_data:
                 return {'cut_actor': None, 'fill_actor': None, 'cut_polydata': None, 
                         'plane_origin': None, 'plane_x_axis': None, 'plane_y_axis': None,
@@ -587,7 +639,8 @@ class VolumeRenderer:
             return (None, None)
         
         if self.volume_data is None:
-            print("[DEBUG] 体积数据为空")
+            if _DEBUG:
+                print("[DEBUG] 体积数据为空")
             if return_data:
                 return {'cut_actor': None, 'fill_actor': None, 'cut_polydata': None,
                         'plane_origin': None, 'plane_x_axis': None, 'plane_y_axis': None,
@@ -595,45 +648,58 @@ class VolumeRenderer:
             return (None, None)
         
         try:
-            # 将numpy数组转换为VTK图像数据
-            print(f"[DEBUG] 转换numpy数组到VTK图像...")
-            vtk_image = self._numpy_to_vtk_image(self.volume_data)
-            vtk_image.SetSpacing(self.spacing)
-            vtk_image.SetOrigin(self.origin)
+            # 使用缓存获取VTK图像数据
+            if _DEBUG:
+                print(f"[DEBUG] 转换numpy数组到VTK图像...")
+            vtk_image = self.get_vtk_image_data()
+            if vtk_image is None:
+                if _DEBUG:
+                    print("[DEBUG] 无法获取VTK图像数据")
+                if return_data:
+                    return {'cut_actor': None, 'fill_actor': None, 'cut_polydata': None,
+                            'plane_origin': None, 'plane_x_axis': None, 'plane_y_axis': None,
+                            'fan_apex_offset': self.fan_apex_offset}
+                return (None, None)
             
             # 获取体积边界
             bounds = vtk_image.GetBounds()
-            print(f"[DEBUG] 体积边界: {bounds}")
-            print(f"[DEBUG] 体积维度: {vtk_image.GetDimensions()}")
-            print(f"[DEBUG] 体积间距: {self.spacing}")
-            print(f"[DEBUG] 体积原点: {self.origin}")
+            if _DEBUG:
+                print(f"[DEBUG] 体积边界: {bounds}")
+                print(f"[DEBUG] 体积维度: {vtk_image.GetDimensions()}")
+                print(f"[DEBUG] 体积间距: {self.spacing}")
+                print(f"[DEBUG] 体积原点: {self.origin}")
             
             # 计算切割位置（50%位置）
             # 根据法线方向确定切割轴
-            print(f"[DEBUG] 法线向量: {normal}")
+            if _DEBUG:
+                print(f"[DEBUG] 法线向量: {normal}")
             if abs(normal[2]) > abs(normal[0]) and abs(normal[2]) > abs(normal[1]):
                 # 主要垂直于Z轴
                 cut_position = bounds[4] + (bounds[5] - bounds[4]) * position_percent
                 plane_origin = [(bounds[0] + bounds[1]) / 2, 
                                (bounds[2] + bounds[3]) / 2, 
                                cut_position]
-                print(f"[DEBUG] 垂直于Z轴切割，位置: {cut_position}")
+                if _DEBUG:
+                    print(f"[DEBUG] 垂直于Z轴切割，位置: {cut_position}")
             elif abs(normal[1]) > abs(normal[0]) and abs(normal[1]) > abs(normal[2]):
                 # 主要垂直于Y轴
                 cut_position = bounds[2] + (bounds[3] - bounds[2]) * position_percent
                 plane_origin = [(bounds[0] + bounds[1]) / 2, 
                                cut_position,
                                (bounds[4] + bounds[5]) / 2]
-                print(f"[DEBUG] 垂直于Y轴切割，位置: {cut_position}")
+                if _DEBUG:
+                    print(f"[DEBUG] 垂直于Y轴切割，位置: {cut_position}")
             else:
                 # 主要垂直于X轴
                 cut_position = bounds[0] + (bounds[1] - bounds[0]) * position_percent
                 plane_origin = [cut_position,
                                (bounds[2] + bounds[3]) / 2,
                                (bounds[4] + bounds[5]) / 2]
-                print(f"[DEBUG] 垂直于X轴切割，位置: {cut_position}")
+                if _DEBUG:
+                    print(f"[DEBUG] 垂直于X轴切割，位置: {cut_position}")
             
-            print(f"[DEBUG] 平面原点: {plane_origin}")
+            if _DEBUG:
+                print(f"[DEBUG] 平面原点: {plane_origin}")
             
             # 计算平面坐标系（X轴和Y轴）
             # 归一化法线向量
@@ -663,8 +729,9 @@ class VolumeRenderer:
             plane_x_axis = tuple(plane_x_axis.tolist())
             plane_y_axis = tuple(plane_y_axis.tolist())
             
-            print(f"[DEBUG] 平面X轴: {plane_x_axis}")
-            print(f"[DEBUG] 平面Y轴: {plane_y_axis}")
+            if _DEBUG:
+                print(f"[DEBUG] 平面X轴: {plane_x_axis}")
+                print(f"[DEBUG] 平面Y轴: {plane_y_axis}")
             
             # 创建切割平面
             plane = vtk.vtkPlane()
@@ -682,11 +749,13 @@ class VolumeRenderer:
             # 检查是否有切割结果
             num_points = cut_polydata.GetNumberOfPoints()
             num_cells = cut_polydata.GetNumberOfCells()
-            print(f"[DEBUG] 切割结果 - 点数: {num_points}, 单元数: {num_cells}")
+            if _DEBUG:
+                print(f"[DEBUG] 切割结果 - 点数: {num_points}, 单元数: {num_cells}")
             
             if num_points == 0:
-                print("[DEBUG] 警告: 切割平面未产生任何几何体")
-                print("[DEBUG] 可能原因: 平面位置在体积外部，或体积数据为空")
+                if _DEBUG:
+                    print("[DEBUG] 警告: 切割平面未产生任何几何体")
+                    print("[DEBUG] 可能原因: 平面位置在体积外部，或体积数据为空")
                 if return_data:
                     return {'cut_actor': None, 'fill_actor': None, 'cut_polydata': None,
                             'plane_origin': None, 'plane_x_axis': None, 'plane_y_axis': None,
@@ -704,12 +773,14 @@ class VolumeRenderer:
             cut_actor.GetProperty().SetOpacity(0.7)          # 透明度0.7 - 与参考文件一致
             cut_actor.GetProperty().SetRepresentationToWireframe()  # 线框模式 - 与参考文件一致
             
-            print(f"[DEBUG] 创建红色轮廓线Actor成功")
+            if _DEBUG:
+                print(f"[DEBUG] 创建红色轮廓线Actor成功")
             
             # 创建浅红色填充平面Actor - 使用vtkContourTriangulator
             fill_actor = None
             try:
-                print(f"[DEBUG] 创建填充平面（使用vtkContourTriangulator）...")
+                if _DEBUG:
+                    print(f"[DEBUG] 创建填充平面（使用vtkContourTriangulator）...")
                 
                 # 使用vtkFeatureEdges提取轮廓线
                 feature_edges = vtk.vtkFeatureEdges()
@@ -740,17 +811,22 @@ class VolumeRenderer:
                         fill_actor.GetProperty().SetOpacity(0.7)
                         fill_actor.GetProperty().SetRepresentationToSurface()
                         fill_actor.GetProperty().SetEdgeVisibility(False)
-                        print(f"[DEBUG] 使用ContourTriangulator创建填充平面成功")
+                        if _DEBUG:
+                            print(f"[DEBUG] 使用ContourTriangulator创建填充平面成功")
                     else:
-                        print(f"[DEBUG] ContourTriangulator没有生成多边形")
+                        if _DEBUG:
+                            print(f"[DEBUG] ContourTriangulator没有生成多边形")
                 else:
-                    print(f"[DEBUG] 无法提取轮廓线")
+                    if _DEBUG:
+                        print(f"[DEBUG] 无法提取轮廓线")
                     
             except Exception as e:
-                print(f"[DEBUG] 创建填充平面时出错: {e}")
+                if _DEBUG:
+                    print(f"[DEBUG] 创建填充平面时出错: {e}")
                 # 如果创建填充平面失败，只返回线条Actor
             
-            print(f"[DEBUG] 切割平面创建完成")
+            if _DEBUG:
+                print(f"[DEBUG] 切割平面创建完成")
             
             if return_data:
                 # 返回扩展数据：包含平面原点和坐标轴
@@ -767,9 +843,10 @@ class VolumeRenderer:
                 return cut_actor, fill_actor
             
         except Exception as e:
-            print(f"[DEBUG] 创建切割平面失败: {e}")
-            import traceback
-            traceback.print_exc()
+            if _DEBUG:
+                print(f"[DEBUG] 创建切割平面失败: {e}")
+                import traceback
+                traceback.print_exc()
             if return_data:
                 return {'cut_actor': None, 'fill_actor': None, 'cut_polydata': None,
                         'plane_origin': None, 'plane_x_axis': None, 'plane_y_axis': None,

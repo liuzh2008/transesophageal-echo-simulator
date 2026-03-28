@@ -212,6 +212,9 @@ class EventHandlers:
         from core.volume_render import get_volume_renderer
         volume_renderer = get_volume_renderer()
         
+        # 一次性获取 VTK 图像数据（利用缓存）
+        vtk_image_data = volume_renderer.get_vtk_image_data()
+        
         if volume_renderer.volume_data is None:
             self.main_window.statusBar().showMessage("请先加载DICOM数据", 3000)
             QMessageBox.warning(self.main_window, "警告", "请先加载DICOM数据以显示切割平面")
@@ -227,18 +230,8 @@ class EventHandlers:
             offset_y = self.main_window.ui_components['fan_apex_y_slider'].value() / 100.0
             offset_z = self.main_window.ui_components['fan_apex_z_slider'].value() / 100.0
             
-            # 通过 volume_renderer 获取图像数据
-            image_data = None
-            if hasattr(self.vtk_manager, 'volume_renderer') and self.vtk_manager.volume_renderer is not None:
-                image_data = self.vtk_manager.volume_renderer.get_vtk_image_data()
-            if image_data is None:
-                # 尝试通过单例获取
-                from core.volume_render import get_volume_renderer
-                vr = get_volume_renderer()
-                image_data = vr.get_vtk_image_data()
-            
-            if image_data is not None:
-                bounds = image_data.GetBounds()
+            if vtk_image_data is not None:
+                bounds = vtk_image_data.GetBounds()
                 fan_apex_offset_x = offset_x * (bounds[1] - bounds[0]) / 2.0
                 fan_apex_offset_y = offset_y * (bounds[3] - bounds[2]) / 2.0
                 fan_apex_offset_z = offset_z * (bounds[5] - bounds[4]) / 2.0
@@ -256,7 +249,7 @@ class EventHandlers:
         
         if success:
             # 在主窗口中显示2D图像
-            self._show_2d_image_in_main_window()
+            self._show_2d_image_in_main_window(vtk_image_data=vtk_image_data)
             
             # 更新计时标签
             self._update_time_label(start_time, True)
@@ -324,7 +317,7 @@ class EventHandlers:
                     }
                 """)
     
-    def _show_2d_image_in_main_window(self):
+    def _show_2d_image_in_main_window(self, vtk_image_data=None):
         """在主窗口中显示2D图像"""
         try:
             # 获取2D视图框架
@@ -345,8 +338,9 @@ class EventHandlers:
             from .cross_section_window import create_embedded_2d_view
             from core.volume_render import get_volume_renderer
             
-            volume_renderer = get_volume_renderer()
-            vtk_image_data = volume_renderer.get_vtk_image_data()
+            if vtk_image_data is None:
+                volume_renderer = get_volume_renderer()
+                vtk_image_data = volume_renderer.get_vtk_image_data()
             
             if vtk_image_data is None:
                 print("警告: 无法获取VTK图像数据")
@@ -361,18 +355,8 @@ class EventHandlers:
                 offset_y = self.main_window.ui_components['fan_apex_y_slider'].value() / 100.0
                 offset_z = self.main_window.ui_components['fan_apex_z_slider'].value() / 100.0
                 
-                # 通过 volume_renderer 获取图像数据
-                image_data = None
-                if hasattr(self.vtk_manager, 'volume_renderer') and self.vtk_manager.volume_renderer is not None:
-                    image_data = self.vtk_manager.volume_renderer.get_vtk_image_data()
-                if image_data is None:
-                    # 尝试通过单例获取
-                    from core.volume_render import get_volume_renderer
-                    vr = get_volume_renderer()
-                    image_data = vr.get_vtk_image_data()
-                
-                if image_data is not None:
-                    bounds = image_data.GetBounds()
+                if vtk_image_data is not None:
+                    bounds = vtk_image_data.GetBounds()
                     fan_apex_offset_x = offset_x * (bounds[1] - bounds[0]) / 2.0
                     fan_apex_offset_y = offset_y * (bounds[3] - bounds[2]) / 2.0
                     fan_apex_offset_z = offset_z * (bounds[5] - bounds[4]) / 2.0
