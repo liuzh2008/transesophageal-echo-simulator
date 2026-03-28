@@ -103,7 +103,31 @@ class EventHandlers:
         QMessageBox.about(self.main_window, "关于", about_text)
     
     def handle_fan_apex_offset_changed(self):
-        """处理扇形顶点偏移滑动条变化事件"""
+        """
+        处理扇形顶点偏移滑动条变化事件
+        
+        当扇形顶点偏移滑块值改变时调用此方法。计算物理偏移量并更新 3D 切割平面显示，
+        同时会读取当前的 Omniplane 角度值，将角度信息传递给切割平面渲染。
+        
+        处理流程:
+            1. 从 UI 读取 X/Y/Z 三个方向的滑块值（范围 -100 ~ 100）
+            2. 将滑块值归一化到 -1.0 ~ 1.0 范围
+            3. 根据体积数据边界计算物理偏移量
+            4. 更新 UI 标签显示当前偏移值
+            5. 获取当前 Omniplane 角度值
+            6. 调用 vtk_manager.show_cut_plane() 更新 3D 视图
+            7. 刷新主窗口中的 2D 视图显示
+        
+        @function handle_fan_apex_offset_changed
+        @memberof EventHandlers
+        @instance
+        @returns {void}
+        @triggers {vtk_manager.show_cut_plane} 更新 3D 切割平面
+        @triggers {_show_2d_image_in_main_window} 刷新 2D 视图
+        @example
+        // 当扇形顶点偏移滑块值改变时自动触发
+        fan_apex_x_slider.valueChanged.connect(event_handlers.handle_fan_apex_offset_changed)
+        """
         # 从UI读取滑动条值
         offset_x_val = 0
         offset_y_val = 0
@@ -158,8 +182,95 @@ class EventHandlers:
         self.main_window.statusBar().showMessage(
             f"扇形顶点偏移: X={offset_x:.2f}, Y={offset_y:.2f}, Z={offset_z:.2f}", 2000)
         
+        # 获取 omniplane 角度
+        omniplane_angle = 0
+        if 'omniplane_slider' in self.main_window.ui_components:
+            omniplane_angle = self.main_window.ui_components['omniplane_slider'].value()
+        
+        # 更新 3D 切割平面
+        self.vtk_manager.show_cut_plane(
+            position_percent=0.5,
+            normal=(0, 0, 1),
+            show_2d_window=False,
+            fan_apex_offset_x=physical_offset_x,
+            fan_apex_offset_y=physical_offset_y,
+            fan_apex_offset_z=physical_offset_z,
+            omniplane_angle=omniplane_angle
+        )
+        
         # 刷新2D视图（如果已显示）
         self._show_2d_image_in_main_window()
+    
+    def handle_omniplane_changed(self):
+        """
+        处理 Omniplane 角度滑块变化事件
+        
+        当 Omniplane 角度滑块值改变时调用此方法。更新 UI 显示并同步更新 3D 切割平面和 2D 视图，
+        实现 TEE 探头扫描平面的实时旋转效果。使用 Rodrigues 旋转公式计算旋转后的平面坐标系。
+        
+        处理流程:
+            1. 从 UI 读取 Omniplane 角度滑块值（范围 0-180 度）
+            2. 更新角度标签显示当前角度值
+            3. 在状态栏显示当前角度信息
+            4. 获取当前扇形顶点偏移值（X/Y/Z 三个方向）
+            5. 将偏移值转换为物理偏移量（基于体积数据边界）
+            6. 调用 vtk_manager.show_cut_plane() 更新 3D 切割平面（包含 omniplane 旋转参数）
+            7. 调用 _show_2d_image_in_main_window() 刷新 2D 扇形视图
+        
+        @function handle_omniplane_changed
+        @memberof EventHandlers
+        @instance
+        @returns {void}
+        @triggers {vtk_manager.show_cut_plane} 更新 3D 切割平面，传递 omniplane_angle 参数
+        @triggers {_show_2d_image_in_main_window} 刷新 2D 扇形视图
+        @uses {RodriguesRotation} 在 volume_render.py 中计算旋转后的平面坐标系
+        @example
+        // 当 Omniplane 角度滑块值改变时自动触发
+        omniplane_slider.valueChanged.connect(event_handlers.handle_omniplane_changed)
+        """
+        # 从 UI 读取当前角度值
+        angle = 0
+        if 'omniplane_slider' in self.main_window.ui_components:
+            angle = self.main_window.ui_components['omniplane_slider'].value()
+        
+        # 更新角度标签显示
+        if 'omniplane_label' in self.main_window.ui_components:
+            self.main_window.ui_components['omniplane_label'].setText(f"Omniplane 角度: {angle}°")
+        
+        # 在状态栏显示角度信息
+        self.main_window.statusBar().showMessage(f"Omniplane 角度: {angle}°", 2000)
+        
+        # 获取扇形顶点偏移
+        fan_apex_offset_x = 0.0
+        fan_apex_offset_y = 0.0
+        fan_apex_offset_z = 0.0
+        
+        from core.volume_render import get_volume_renderer
+        volume_renderer = get_volume_renderer()
+        vtk_image_data = volume_renderer.get_vtk_image_data()
+        
+        if vtk_image_data is not None and 'fan_apex_x_slider' in self.main_window.ui_components:
+            offset_x = self.main_window.ui_components['fan_apex_x_slider'].value() / 100.0
+            offset_y = self.main_window.ui_components['fan_apex_y_slider'].value() / 100.0
+            offset_z = self.main_window.ui_components['fan_apex_z_slider'].value() / 100.0
+            bounds = vtk_image_data.GetBounds()
+            fan_apex_offset_x = offset_x * (bounds[1] - bounds[0]) / 2.0
+            fan_apex_offset_y = offset_y * (bounds[3] - bounds[2]) / 2.0
+            fan_apex_offset_z = offset_z * (bounds[5] - bounds[4]) / 2.0
+        
+        # 更新 3D 切割平面（包含 omniplane 旋转）
+        self.vtk_manager.show_cut_plane(
+            position_percent=0.5,
+            normal=(0, 0, 1),
+            show_2d_window=False,
+            fan_apex_offset_x=fan_apex_offset_x,
+            fan_apex_offset_y=fan_apex_offset_y,
+            fan_apex_offset_z=fan_apex_offset_z,
+            omniplane_angle=angle
+        )
+        
+        # 刷新2D视图
+        self._show_2d_image_in_main_window(vtk_image_data=vtk_image_data)
     
     def handle_show_cut_plane(self):
         """
@@ -237,14 +348,28 @@ class EventHandlers:
                 fan_apex_offset_z = offset_z * (bounds[5] - bounds[4]) / 2.0
                 print(f"[DEBUG] handle_show_cut_plane 物理偏移量: x={fan_apex_offset_x:.1f}, y={fan_apex_offset_y:.1f}, z={fan_apex_offset_z:.1f}")
         
-        # 显示切割平面
+        # 获取 Omniplane 角度 - 用于控制 TEE 探头扫描平面的旋转
+        # 从 UI 滑块读取当前角度值（范围 0-180 度），默认为 0 度
+        omniplane_angle = 0
+        if 'omniplane_slider' in self.main_window.ui_components:
+            omniplane_angle = self.main_window.ui_components['omniplane_slider'].value()
+        
+        # 显示切割平面 - 传递所有参数包括扇形顶点偏移和 Omniplane 角度
+        # @param {float} position_percent - 切割位置百分比（0.5 = 50%位置）
+        # @param {tuple} normal - 平面法线向量，默认 (0, 0, 1) 垂直于 Z 轴
+        # @param {bool} show_2d_window - 是否在新窗口显示 2D 图像，False 表示在主窗口显示
+        # @param {float} fan_apex_offset_x - 扇形顶点 X 方向物理偏移量
+        # @param {float} fan_apex_offset_y - 扇形顶点 Y 方向物理偏移量
+        # @param {float} fan_apex_offset_z - 扇形顶点 Z 方向物理偏移量
+        # @param {int} omniplane_angle - Omniplane 旋转角度（0-180 度），控制扫描平面旋转
         success = self.vtk_manager.show_cut_plane(
             position_percent=0.5,  # 50%位置
             normal=(0, 0, 1),      # 垂直于Z轴
             show_2d_window=False,  # 不在新窗口中显示2D图像，而是在主窗口中显示
             fan_apex_offset_x=fan_apex_offset_x,
             fan_apex_offset_y=fan_apex_offset_y,
-            fan_apex_offset_z=fan_apex_offset_z
+            fan_apex_offset_z=fan_apex_offset_z,
+            omniplane_angle=omniplane_angle
         )
         
         if success:
@@ -362,6 +487,11 @@ class EventHandlers:
                     fan_apex_offset_z = offset_z * (bounds[5] - bounds[4]) / 2.0
                     print(f"[DEBUG] _show_2d_image_in_main_window 物理偏移量: x={fan_apex_offset_x:.1f}, y={fan_apex_offset_y:.1f}, z={fan_apex_offset_z:.1f}")
             
+            # 获取 Omniplane 角度
+            omniplane_angle = 0
+            if 'omniplane_slider' in self.main_window.ui_components:
+                omniplane_angle = self.main_window.ui_components['omniplane_slider'].value()
+            
             # 创建2D视图小部件
             vtk_widget = create_embedded_2d_view(
                 image_data=vtk_image_data,
@@ -370,7 +500,8 @@ class EventHandlers:
                 parent_widget=view_2d_frame,
                 fan_apex_offset_x=fan_apex_offset_x,
                 fan_apex_offset_y=fan_apex_offset_y,
-                fan_apex_offset_z=fan_apex_offset_z
+                fan_apex_offset_z=fan_apex_offset_z,
+                omniplane_angle=omniplane_angle
             )
             
             if vtk_widget is not None:

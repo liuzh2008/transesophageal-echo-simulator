@@ -17,6 +17,9 @@ from .event_handlers import EventHandlers
 class MainWindow(QMainWindow):
     """应用程序主窗口 - 重构版本"""
     
+    # 版本号常量，格式：主版本.次版本.修订号
+    VERSION = "0.1.001"
+    
     def __init__(self):
         super().__init__()
         
@@ -242,6 +245,14 @@ class MainWindow(QMainWindow):
         if 'cut_plane_button' in self.ui_components:
             self.ui_components['cut_plane_button'].clicked.connect(
                 self.event_handlers.handle_show_cut_plane)
+        
+        # 连接 Omniplane 角度滑块 - 控制 TEE 探头扫描平面的旋转角度
+        # 当滑块值改变时，触发 handle_omniplane_changed 方法更新 3D 切割平面和 2D 视图
+        # @event_connection {QSlider.valueChanged} -> {EventHandlers.handle_omniplane_changed}
+        # @param {int} value - 滑块当前值，范围 0-180 度
+        if 'omniplane_slider' in self.ui_components:
+            self.ui_components['omniplane_slider'].valueChanged.connect(
+                self.event_handlers.handle_omniplane_changed)
         
         # 连接扇形顶点偏移滑动条
         for slider_key in ['fan_apex_x_slider', 'fan_apex_y_slider', 'fan_apex_z_slider']:

@@ -30,25 +30,35 @@ _DEBUG = False
 
 
 class CrossSectionWindow(QMainWindow):
-    """2D截面窗口 - 显示垂直于切割平面的2D切片图像"""
+    """
+    2D截面窗口 - 显示垂直于切割平面的2D切片图像
+    
+    支持 Omniplane 角度旋转功能，可以模拟 TEE 探头在不同角度下的扫描平面显示。
+    使用 Rodrigues 旋转公式实现扫描平面坐标系的旋转。
+    """
     
     def __init__(self, image_data, normal_vector, cut_position, parent=None,
                  plane_origin=None, plane_x_axis=None, plane_y_axis=None,
-                 fan_apex_offset_x=0.0, fan_apex_offset_y=0.0, fan_apex_offset_z=0.0):
+                 fan_apex_offset_x=0.0, fan_apex_offset_y=0.0, fan_apex_offset_z=0.0,
+                 omniplane_angle=0):
         """
         初始化2D截面窗口
         
         参数:
-            image_data: vtkImageData对象，3D体积数据
-            normal_vector: 切割平面法线向量 (nx, ny, nz)
-            cut_position: 切割位置（百分比或实际坐标）
-            parent: 父窗口
-            plane_origin: 平面原点 (x, y, z)，用于精确定位切割位置（可选）
-            plane_x_axis: 平面X轴方向 (归一化向量)（可选）
-            plane_y_axis: 平面Y轴方向 (归一化向量)（可选）
-            fan_apex_offset_x: 扇形顶点X方向偏移（基于切片局部坐标系）
-            fan_apex_offset_y: 扇形顶点Y方向偏移（基于切片局部坐标系）
-            fan_apex_offset_z: 扇形顶点Z方向偏移（基于切片局部坐标系）
+            image_data (vtk.vtkImageData): 3D体积数据
+            normal_vector (tuple): 切割平面法线向量 (nx, ny, nz)
+            cut_position (float): 切割位置（百分比或实际坐标）
+            parent (QWidget, 可选): 父窗口
+            plane_origin (tuple, 可选): 平面原点 (x, y, z)，用于精确定位切割位置
+            plane_x_axis (tuple, 可选): 平面X轴方向（归一化向量），定义切片局部坐标系的X方向
+            plane_y_axis (tuple, 可选): 平面Y轴方向（归一化向量），定义切片局部坐标系的Y方向
+            fan_apex_offset_x (float, 可选): 扇形顶点X方向物理偏移量，基于切片局部坐标系，默认为0.0
+            fan_apex_offset_y (float, 可选): 扇形顶点Y方向物理偏移量，基于切片局部坐标系，默认为0.0
+            fan_apex_offset_z (float, 可选): 扇形顶点Z方向物理偏移量，沿法线方向，默认为0.0
+            omniplane_angle (int, 可选): Omniplane旋转角度（0-180度），控制扫描平面绕法线旋转，默认为0
+        
+        属性:
+            omniplane_angle (int): 存储当前的 Omniplane 角度值，用于渲染器创建扇形视图
         """
         super().__init__(parent)
         
@@ -65,6 +75,9 @@ class CrossSectionWindow(QMainWindow):
         self.fan_apex_offset_x = fan_apex_offset_x
         self.fan_apex_offset_y = fan_apex_offset_y
         self.fan_apex_offset_z = fan_apex_offset_z
+        
+        # 存储Omniplane角度
+        self.omniplane_angle = omniplane_angle
         
         # 窗口设置
         self.setWindowTitle(f"2D切片视图 - 法线: {normal_vector}")
@@ -132,7 +145,8 @@ class CrossSectionWindow(QMainWindow):
             plane_y_axis=self.plane_y_axis,
             fan_apex_offset_x=self.fan_apex_offset_x,
             fan_apex_offset_y=self.fan_apex_offset_y,
-            fan_apex_offset_z=self.fan_apex_offset_z
+            fan_apex_offset_z=self.fan_apex_offset_z,
+            omniplane_angle=self.omniplane_angle
         )
     
     def _show_vtk_unavailable_message(self):
@@ -186,35 +200,46 @@ class CrossSectionWindow(QMainWindow):
 
 def create_cross_section_window(image_data, normal_vector, cut_position, parent=None,
                                 plane_origin=None, plane_x_axis=None, plane_y_axis=None,
-                                fan_apex_offset_x=0.0, fan_apex_offset_y=0.0, fan_apex_offset_z=0.0):
+                                fan_apex_offset_x=0.0, fan_apex_offset_y=0.0, fan_apex_offset_z=0.0,
+                                omniplane_angle=0):
     """
     创建并显示2D切片窗口的便捷函数
     
+    支持 Omniplane 角度旋转功能，可以创建具有特定角度旋转的 2D 切片窗口。
+    使用 Rodrigues 旋转公式实现扫描平面坐标系的旋转，模拟真实 TEE 探头的角度扫描。
+    
     参数:
-        image_data: vtk.vtkImageData - 3D体积数据，包含DICOM图像信息
-        normal_vector: tuple - 切割平面法线向量 (nx, ny, nz)，定义切片方向
-        cut_position: float - 切割位置（百分比），0.0-1.0之间，0.5表示50%位置
-        parent: QWidget (可选) - 父窗口部件，用于窗口层次结构
-        plane_origin: tuple (可选) - 平面原点 (x, y, z)，用于精确定位切割位置
-        plane_x_axis: tuple (可选) - 平面X轴方向 (归一化向量)
-        plane_y_axis: tuple (可选) - 平面Y轴方向 (归一化向量)
-        fan_apex_offset_x: 扇形顶点X方向偏移（基于切片局部坐标系）
-        fan_apex_offset_y: 扇形顶点Y方向偏移（基于切片局部坐标系）
-        fan_apex_offset_z: 扇形顶点Z方向偏移（基于切片局部坐标系）
+        image_data (vtk.vtkImageData): 3D体积数据，包含DICOM图像信息
+        normal_vector (tuple): 切割平面法线向量 (nx, ny, nz)，定义切片方向
+        cut_position (float): 切割位置（百分比），0.0-1.0之间，0.5表示50%位置
+        parent (QWidget, 可选): 父窗口部件，用于窗口层次结构
+        plane_origin (tuple, 可选): 平面原点 (x, y, z)，用于精确定位切割位置
+        plane_x_axis (tuple, 可选): 平面X轴方向（归一化向量），定义切片局部坐标系的X方向
+        plane_y_axis (tuple, 可选): 平面Y轴方向（归一化向量），定义切片局部坐标系的Y方向
+        fan_apex_offset_x (float, 可选): 扇形顶点X方向物理偏移量，基于切片局部坐标系，默认为0.0
+        fan_apex_offset_y (float, 可选): 扇形顶点Y方向物理偏移量，基于切片局部坐标系，默认为0.0
+        fan_apex_offset_z (float, 可选): 扇形顶点Z方向物理偏移量，沿法线方向，默认为0.0
+        omniplane_angle (int, 可选): Omniplane旋转角度（0-180度），控制扫描平面绕法线旋转，默认为0
         
     返回:
-        CrossSectionWindow - 创建的2D切片窗口实例
+        CrossSectionWindow: 创建的2D切片窗口实例，包含指定的Omniplane角度设置
         
     逻辑:
-        1. 创建CrossSectionWindow实例
+        1. 创建 CrossSectionWindow 实例，传入所有参数包括 omniplane_angle
         2. 设置窗口标志确保作为独立窗口显示
         3. 显示窗口并激活
         4. 返回窗口实例
         
-    响应示例:
+    示例:
+        >>> # 创建标准 0 度切片窗口
         >>> window = create_cross_section_window(vtk_image, (0, 0, 1), 0.5)
         >>> print(window.windowTitle())
         "2D切片视图 - 法线: (0, 0, 1)"
+        
+        >>> # 创建 45 度 Omniplane 角度的切片窗口
+        >>> window = create_cross_section_window(
+        ...     vtk_image, (0, 0, 1), 0.5, omniplane_angle=45
+        ... )
         
     相关文件:
         src/gui/cross_section_window.py
@@ -228,7 +253,8 @@ def create_cross_section_window(image_data, normal_vector, cut_position, parent=
         plane_y_axis=plane_y_axis,
         fan_apex_offset_x=fan_apex_offset_x,
         fan_apex_offset_y=fan_apex_offset_y,
-        fan_apex_offset_z=fan_apex_offset_z
+        fan_apex_offset_z=fan_apex_offset_z,
+        omniplane_angle=omniplane_angle
     )
     
     # 确保窗口作为独立窗口显示
@@ -246,24 +272,41 @@ def create_cross_section_window(image_data, normal_vector, cut_position, parent=
 
 def create_embedded_2d_view(image_data, normal_vector, cut_position, parent_widget,
                             plane_origin=None, plane_x_axis=None, plane_y_axis=None,
-                            fan_apex_offset_x=0.0, fan_apex_offset_y=0.0, fan_apex_offset_z=0.0):
+                            fan_apex_offset_x=0.0, fan_apex_offset_y=0.0, fan_apex_offset_z=0.0,
+                            omniplane_angle=0):
     """
     创建内嵌的2D视图小部件（用于在主窗口中显示）
     
+    支持 Omniplane 角度旋转功能，可以在主窗口中显示具有特定角度旋转的 2D 切片。
+    使用 Rodrigues 旋转公式实现扫描平面坐标系的旋转，模拟真实 TEE 探头的角度扫描。
+    
     参数:
-        image_data: vtk.vtkImageData - 3D体积数据
-        normal_vector: tuple - 切割平面法线向量 (nx, ny, nz)
-        cut_position: float - 切割位置（百分比）
-        parent_widget: QWidget - 父窗口部件
-        plane_origin: tuple (可选) - 平面原点 (x, y, z)，用于精确定位切割位置
-        plane_x_axis: tuple (可选) - 平面X轴方向 (归一化向量)
-        plane_y_axis: tuple (可选) - 平面Y轴方向 (归一化向量)
-        fan_apex_offset_x: 扇形顶点X方向偏移（基于切片局部坐标系）
-        fan_apex_offset_y: 扇形顶点Y方向偏移（基于切片局部坐标系）
-        fan_apex_offset_z: 扇形顶点Z方向偏移（基于切片局部坐标系）
+        image_data (vtk.vtkImageData): 3D体积数据
+        normal_vector (tuple): 切割平面法线向量 (nx, ny, nz)
+        cut_position (float): 切割位置（百分比），0.0-1.0之间
+        parent_widget (QWidget): 父窗口部件
+        plane_origin (tuple, 可选): 平面原点 (x, y, z)，用于精确定位切割位置
+        plane_x_axis (tuple, 可选): 平面X轴方向（归一化向量），定义切片局部坐标系的X方向
+        plane_y_axis (tuple, 可选): 平面Y轴方向（归一化向量），定义切片局部坐标系的Y方向
+        fan_apex_offset_x (float, 可选): 扇形顶点X方向物理偏移量，基于切片局部坐标系，默认为0.0
+        fan_apex_offset_y (float, 可选): 扇形顶点Y方向物理偏移量，基于切片局部坐标系，默认为0.0
+        fan_apex_offset_z (float, 可选): 扇形顶点Z方向物理偏移量，沿法线方向，默认为0.0
+        omniplane_angle (int, 可选): Omniplane旋转角度（0-180度），控制扫描平面绕法线旋转，默认为0
         
     返回:
-        QVTKRenderWindowInteractor - 包含2D切片渲染的VTK小部件，或None（如果创建失败）
+        QVTKRenderWindowInteractor: 包含2D切片渲染的VTK小部件，如果创建失败则返回None
+        
+    示例:
+        >>> # 创建标准 0 度内嵌视图
+        >>> widget = create_embedded_2d_view(
+        ...     image_data, (0, 0, 1), 0.5, parent_widget=main_window
+        ... )
+        >>>
+        >>> # 创建 90 度 Omniplane 角度的内嵌视图
+        >>> widget = create_embedded_2d_view(
+        ...     image_data, (0, 0, 1), 0.5, parent_widget=main_window,
+        ...     omniplane_angle=90
+        ... )
     """
     if not VTK_AVAILABLE or image_data is None:
         return None
@@ -280,7 +323,8 @@ def create_embedded_2d_view(image_data, normal_vector, cut_position, parent_widg
             plane_y_axis=plane_y_axis,
             fan_apex_offset_x=fan_apex_offset_x,
             fan_apex_offset_y=fan_apex_offset_y,
-            fan_apex_offset_z=fan_apex_offset_z
+            fan_apex_offset_z=fan_apex_offset_z,
+            omniplane_angle=omniplane_angle
         )
         
         if renderer is not None:
@@ -349,23 +393,40 @@ def _get_fan_geometry_cache(fan_angle, output_size, fan_apex_x, fan_apex_y, pixe
 
 def _create_slice_renderer_internal(image_data, normal_vector, cut_position,
                                      plane_origin=None, plane_x_axis=None, plane_y_axis=None,
-                                     fan_apex_offset_x=0.0, fan_apex_offset_y=0.0, fan_apex_offset_z=0.0):
+                                     fan_apex_offset_x=0.0, fan_apex_offset_y=0.0, fan_apex_offset_z=0.0,
+                                     omniplane_angle=0):
     """
     内部函数：创建2D切片渲染器 - 直接从3D体积数据扇形采样
     
+    核心渲染函数，支持 Omniplane 角度旋转功能。使用 Rodrigues 旋转公式实现
+    扫描平面坐标系绕法线向量的旋转，模拟真实 TEE 探头的角度扫描能力。
+    
     参数:
-        image_data: vtk.vtkImageData - 3D体积数据
-        normal_vector: tuple - 切割平面法线向量
-        cut_position: float - 切割位置
-        plane_origin: tuple (可选) - 平面原点 (x, y, z)，用于精确定位切割位置
-        plane_x_axis: tuple (可选) - 平面X轴方向 (归一化向量)
-        plane_y_axis: tuple (可选) - 平面Y轴方向 (归一化向量)
-        fan_apex_offset_x: 扇形顶点X方向偏移（基于切片局部坐标系）
-        fan_apex_offset_y: 扇形顶点Y方向偏移（基于切片局部坐标系）
-        fan_apex_offset_z: 扇形顶点Z方向偏移（基于切片局部坐标系）
+        image_data (vtk.vtkImageData): 3D体积数据
+        normal_vector (tuple): 切割平面法线向量 (nx, ny, nz)
+        cut_position (float): 切割位置（百分比），0.0-1.0之间
+        plane_origin (tuple, 可选): 平面原点 (x, y, z)，用于精确定位切割位置
+        plane_x_axis (tuple, 可选): 平面X轴方向（归一化向量），定义切片局部坐标系的X方向
+        plane_y_axis (tuple, 可选): 平面Y轴方向（归一化向量），定义切片局部坐标系的Y方向
+        fan_apex_offset_x (float, 可选): 扇形顶点X方向物理偏移量，基于切片局部坐标系，默认为0.0
+        fan_apex_offset_y (float, 可选): 扇形顶点Y方向物理偏移量，基于切片局部坐标系，默认为0.0
+        fan_apex_offset_z (float, 可选): 扇形顶点Z方向物理偏移量，沿法线方向，默认为0.0
+        omniplane_angle (int, 可选): Omniplane旋转角度（0-180度），控制扫描平面绕法线旋转，默认为0
         
     返回:
-        vtkRenderer对象或None
+        vtk.vtkRenderer: 配置好的2D切片渲染器对象，如果创建失败则返回None
+        
+    技术细节:
+        Omniplane 旋转处理:
+            1. 当传入 plane_x_axis 和 plane_y_axis 时，直接使用这些坐标轴（已在外部计算旋转）
+            2. 当需要回退计算坐标系时，根据 omniplane_angle 应用 Rodrigues 旋转公式：
+               v_rot = v * cos(θ) + (k × v) * sin(θ) + k * (k · v) * (1 - cos(θ))
+            3. 旋转轴 k 为法线向量，旋转角度 θ 为 omniplane_angle 转换为弧度
+        
+        TEE 扇形采样:
+            - 使用极坐标网格进行扇形采样
+            - 通过矩阵乘法将扇形坐标转换为世界坐标
+            - 使用 scipy.ndimage.map_coordinates 进行三线性插值
     """
     if not VTK_AVAILABLE or image_data is None:
         return None
@@ -446,6 +507,72 @@ def _create_slice_renderer_internal(image_data, normal_vector, cut_position,
             if _DEBUG:
                 print(f"[DEBUG] _create_slice_renderer_internal 计算的X轴: ({x_axis[0]:.3f}, {x_axis[1]:.3f}, {x_axis[2]:.3f})")
                 print(f"[DEBUG] _create_slice_renderer_internal 计算的Y轴: ({y_axis[0]:.3f}, {y_axis[1]:.3f}, {y_axis[2]:.3f})")
+            
+            # =====================================================
+            # Omniplane 旋转（仅在回退计算坐标系时应用）
+            # =====================================================
+            # 当没有传入预计算的 plane_x_axis 和 plane_y_axis 时，
+            # 需要在这里根据 omniplane_angle 计算旋转后的坐标系。
+            #
+            # Rodrigues 旋转公式：
+            #   v_rot = v * cos(θ) + (k × v) * sin(θ) + k * (k · v) * (1 - cos(θ))
+            #
+            # 其中：
+            #   - v: 待旋转的向量（x_axis 或 y_axis）
+            #   - k: 旋转轴单位向量（归一化的法线向量）
+            #   - θ: 旋转角度（omniplane_angle 转换为弧度）
+            #   - ×: 向量叉积
+            #   - ·: 向量点积
+            #
+            # 此旋转模拟 TEE 探头的 Omniplane 功能，在不移动探头的情况下
+            # 通过电子控制改变超声扫描平面的角度。
+            # =====================================================
+            if omniplane_angle != 0:
+                import numpy as np
+                import math as _math
+                
+                # 将角度从度转换为弧度
+                theta = _math.radians(omniplane_angle)
+                # 预计算三角函数值
+                cos_t = _math.cos(theta)
+                sin_t = _math.sin(theta)
+                
+                # 构建归一化的法线向量作为旋转轴 k
+                normal_array = np.array([nx, ny, nz], dtype=np.float64)
+                normal_length = np.linalg.norm(normal_array)
+                if normal_length > 0:
+                    k = normal_array / normal_length  # 归一化旋转轴
+                else:
+                    k = normal_array
+                
+                def rodrigues_rotate(v, k, cos_t, sin_t):
+                    """
+                    Rodrigues 旋转公式实现
+                    
+                    参数:
+                        v (np.array): 待旋转的向量
+                        k (np.array): 旋转轴单位向量
+                        cos_t (float): cos(θ) 预计算值
+                        sin_t (float): sin(θ) 预计算值
+                    
+                    返回:
+                        np.array: 旋转后的向量
+                    
+                    数学公式:
+                        v_rot = v*cos(θ) + (k×v)*sin(θ) + k*(k·v)*(1-cos(θ))
+                    """
+                    # 计算 k × v（旋转轴与向量的叉积）
+                    kxv = np.cross(k, v)
+                    # 计算 k · v（旋转轴与向量的点积）
+                    kdv = np.dot(k, v)
+                    # 组合三项得到旋转后的向量
+                    return v * cos_t + kxv * sin_t + k * kdv * (1 - cos_t)
+                
+                # 应用旋转到平面坐标系的 X 轴和 Y 轴
+                px = rodrigues_rotate(np.array(x_axis), k, cos_t, sin_t)
+                py = rodrigues_rotate(np.array(y_axis), k, cos_t, sin_t)
+                x_axis = tuple(px.tolist())
+                y_axis = tuple(py.tolist())
         
         # 应用扇形顶点偏移（基于切片局部坐标系）
         center[0] += fan_apex_offset_x * x_axis[0] + fan_apex_offset_y * y_axis[0] + fan_apex_offset_z * nx
@@ -557,10 +684,9 @@ def _create_slice_renderer_internal(image_data, normal_vector, cut_position,
         return renderer
         
     except Exception as e:
-        if _DEBUG:
-            print(f"[DEBUG] 创建2D切片渲染器失败: {e}")
-            import traceback
-            traceback.print_exc()
+        import traceback
+        print(f"[ERROR] 创建2D切片渲染器失败: {e}")
+        traceback.print_exc()
         return None
 
 

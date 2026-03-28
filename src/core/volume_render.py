@@ -600,28 +600,66 @@ class VolumeRenderer:
         except Exception as e:
             warnings.warn(f"更新透明度失败: {e}")
     
-    def create_cut_plane(self, position_percent: float = 0.5, 
+    def create_cut_plane(self, position_percent: float = 0.5,
                         normal: Tuple[float, float, float] = (0, 0, 1),
-                        return_data: bool = False) -> Union[
-                            Tuple[Optional[vtk.vtkActor], Optional[vtk.vtkActor]], 
+                        return_data: bool = False,
+                        omniplane_angle: float = 0) -> Union[
+                            Tuple[Optional[vtk.vtkActor], Optional[vtk.vtkActor]],
                             Dict[str, Any]
                         ]:
-        """创建切割平面（红色线条+浅红色填充）
+        """
+        创建切割平面（红色线条+浅红色填充）
+        
+        在 3D 体积数据中创建切割平面，支持 Omniplane 角度旋转功能。
+        使用 Rodrigues 旋转公式实现扫描平面坐标系绕法线向量的旋转，
+        模拟真实 TEE 探头的角度扫描能力。
         
         参数:
-            position_percent: 切割位置百分比 (0.0-1.0)，0.5表示50%位置
-            normal: 平面法线向量，默认垂直于Z轴
-            return_data: 是否返回切割数据（vtkPolyData）及平面参数
-            
+            position_percent (float): 切割位置百分比 (0.0-1.0)，0.5 表示 50% 位置
+            normal (tuple): 平面法线向量 (nx, ny, nz)，默认 (0, 0, 1) 垂直于 Z 轴
+            return_data (bool): 是否返回切割数据（vtkPolyData）及平面参数，默认为 False
+            omniplane_angle (float): Omniplane 旋转角度（度），0-180 范围，
+                                    控制扫描平面坐标系绕法线向量旋转，默认为 0
+        
         返回:
-            如果return_data为False: (cut_actor, fill_actor) - 红色线条Actor和浅红色填充Actor
-            如果return_data为True: dict包含：
-                - cut_actor: 红色线条Actor
-                - fill_actor: 浅红色填充Actor
-                - cut_polydata: 切割数据
-                - plane_origin: 平面原点 (x, y, z)
-                - plane_x_axis: 平面X轴方向 (归一化向量)
-                - plane_y_axis: 平面Y轴方向 (归一化向量)
+            Union[Tuple, Dict]:
+                如果 return_data 为 False: 返回 (cut_actor, fill_actor)
+                    - cut_actor: 红色线条 Actor（切割轮廓线）
+                    - fill_actor: 浅红色填充 Actor（切割平面填充）
+                如果 return_data 为 True: 返回包含以下键的字典：
+                    - cut_actor: 红色线条 Actor
+                    - fill_actor: 浅红色填充 Actor
+                    - cut_polydata: 切割数据（vtkPolyData）
+                    - plane_origin: 平面原点 (x, y, z)
+                    - plane_x_axis: 平面 X 轴方向（归一化向量），受 omniplane_angle 影响
+                    - plane_y_axis: 平面 Y 轴方向（归一化向量），受 omniplane_angle 影响
+                    - fan_apex_offset: 扇形顶点偏移量
+        
+        技术细节:
+            Omniplane 旋转使用 Rodrigues 旋转公式实现：
+            v_rot = v * cos(θ) + (k × v) * sin(θ) + k * (k · v) * (1 - cos(θ))
+            
+            其中：
+                - v: 待旋转的平面坐标轴（plane_x_axis 或 plane_y_axis）
+                - k: 旋转轴（法线向量 normal）
+                - θ: 旋转角度（omniplane_angle 转换为弧度）
+                - ×: 向量叉积
+                - ·: 向量点积
+        
+        示例:
+            >>> # 创建标准 0 度切割平面
+            >>> cut_actor, fill_actor = volume_renderer.create_cut_plane(
+            ...     position_percent=0.5, normal=(0, 0, 1), omniplane_angle=0
+            ... )
+            >>>
+            >>> # 创建 45 度 Omniplane 旋转的切割平面
+            >>> result = volume_renderer.create_cut_plane(
+            ...     position_percent=0.5,
+            ...     normal=(0, 0, 1),
+            ...     omniplane_angle=45,
+            ...     return_data=True
+            ... )
+            >>> print(result['plane_x_axis'], result['plane_y_axis'])
         """
         if _DEBUG:
             print(f"\n[DEBUG] 开始创建切割平面...")
@@ -724,6 +762,74 @@ class VolumeRenderer:
             y_length = np.linalg.norm(plane_y_axis)
             if y_length > 0:
                 plane_y_axis = plane_y_axis / y_length
+            
+            # =====================================================
+            # Omniplane 旋转：绕法线向量旋转 plane_x_axis 和 plane_y_axis
+            # =====================================================
+            # Omniplane 技术模拟：在不移动探头的情况下，通过电子控制改变超声扫描平面的角度
+            # 旋转轴为平面法线向量（即超声束传播方向），旋转角度由 omniplane_angle 参数控制
+            #
+            # Rodrigues 旋转公式（罗德里格斯旋转公式）：
+            # 用于计算向量 v 绕单位向量 k 旋转角度 θ 后的新向量 v_rot
+            #
+            # 数学公式：
+            #   v_rot = v * cos(θ) + (k × v) * sin(θ) + k * (k · v) * (1 - cos(θ))
+            #
+            # 其中：
+            #   - v: 待旋转的向量（plane_x_axis 或 plane_y_axis）
+            #   - k: 旋转轴单位向量（此处为法线向量 normal_vec）
+            #   - θ: 旋转角度（由 omniplane_angle 转换而来，单位：弧度）
+            #   - ×: 向量叉积（cross product）
+            #   - ·: 向量点积（dot product）
+            #
+            # 公式分解：
+            #   1. v * cos(θ): 原向量在旋转平面内的投影分量
+            #   2. (k × v) * sin(θ): 垂直于旋转轴和原向量的分量，提供旋转的切向分量
+            #   3. k * (k · v) * (1 - cos(θ)): 沿旋转轴方向的分量，保持轴向不变
+            #
+            # 在 TEE 超声中的应用：
+            #   - plane_x_axis 和 plane_y_axis 定义了超声扫描平面的局部坐标系
+            #   - 绕法线旋转这两个轴，相当于旋转超声图像的显示方向
+            #   - 模拟真实 TEE 探头的角度扫描功能，0°到180°覆盖所有标准切面
+            # =====================================================
+            if omniplane_angle != 0:
+                import math
+                # 将角度从度转换为弧度
+                theta = math.radians(omniplane_angle)
+                # 预计算三角函数值，避免重复计算
+                cos_t = math.cos(theta)
+                sin_t = math.sin(theta)
+                
+                # 旋转轴 = 法线向量（已归一化）
+                k = normal_vec
+                
+                def rodrigues_rotate(v, k, cos_t, sin_t):
+                    """
+                    Rodrigues 旋转公式实现
+                    
+                    参数:
+                        v (np.array): 待旋转的向量
+                        k (np.array): 旋转轴单位向量
+                        cos_t (float): cos(θ) 预计算值
+                        sin_t (float): sin(θ) 预计算值
+                    
+                    返回:
+                        np.array: 旋转后的向量
+                    
+                    数学公式:
+                        v_rot = v*cos(θ) + (k×v)*sin(θ) + k*(k·v)*(1-cos(θ))
+                    """
+                    # 计算 k × v（旋转轴与向量的叉积）
+                    kxv = np.cross(k, v)
+                    # 计算 k · v（旋转轴与向量的点积）
+                    kdv = np.dot(k, v)
+                    # 组合三项得到旋转后的向量
+                    return v * cos_t + kxv * sin_t + k * kdv * (1 - cos_t)
+                
+                # 应用旋转到平面坐标系的 X 轴和 Y 轴
+                # 这两个轴互相正交且都垂直于法线向量
+                plane_x_axis = rodrigues_rotate(plane_x_axis, k, cos_t, sin_t)
+                plane_y_axis = rodrigues_rotate(plane_y_axis, k, cos_t, sin_t)
             
             # 转换为元组
             plane_x_axis = tuple(plane_x_axis.tolist())

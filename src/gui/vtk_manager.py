@@ -246,16 +246,35 @@ class VTKManager:
         self.vtk_widget.GetRenderWindow().Render()
     
     def show_cut_plane(self, position_percent=0.5, normal=(0, 0, 1), show_2d_window=False,
-                       fan_apex_offset_x=0.0, fan_apex_offset_y=0.0, fan_apex_offset_z=0.0):
-        """显示切割平面（红色线条+浅红色填充）
+                       fan_apex_offset_x=0.0, fan_apex_offset_y=0.0, fan_apex_offset_z=0.0,
+                       omniplane_angle=0):
+        """
+        显示切割平面（红色线条+浅红色填充）
+        
+        在 3D 体积数据中创建并显示切割平面，支持扇形顶点偏移和 Omniplane 角度旋转。
+        使用 Rodrigues 旋转公式实现扫描平面的角度控制。
         
         参数:
-            position_percent: 切割位置百分比 (0.0-1.0)，0.5表示50%位置
-            normal: 平面法线向量，默认垂直于Z轴
-            show_2d_window: 是否显示2D切片窗口（独立窗口），默认为False（在主窗口中显示）
-            fan_apex_offset_x: 扇形顶点X轴偏移量
-            fan_apex_offset_y: 扇形顶点Y轴偏移量
-            fan_apex_offset_z: 扇形顶点Z轴偏移量
+            position_percent (float): 切割位置百分比 (0.0-1.0)，0.5 表示 50% 位置
+            normal (tuple): 平面法线向量 (nx, ny, nz)，默认 (0, 0, 1) 垂直于 Z 轴
+            show_2d_window (bool): 是否显示 2D 切片窗口（独立窗口），默认为 False（在主窗口中显示）
+            fan_apex_offset_x (float): 扇形顶点 X 轴物理偏移量，基于切片局部坐标系
+            fan_apex_offset_y (float): 扇形顶点 Y 轴物理偏移量，基于切片局部坐标系
+            fan_apex_offset_z (float): 扇形顶点 Z 轴物理偏移量，沿法线方向
+            omniplane_angle (int): Omniplane 旋转角度（0-180 度），控制扫描平面绕法线旋转，默认为 0
+        
+        返回:
+            bool: 切割平面显示成功返回 True，失败返回 False
+        
+        示例:
+            >>> vtk_manager.show_cut_plane(
+            ...     position_percent=0.5,
+            ...     normal=(0, 0, 1),
+            ...     fan_apex_offset_x=10.0,
+            ...     fan_apex_offset_y=5.0,
+            ...     omniplane_angle=45
+            ... )
+            True
         """
         if not VTK_AVAILABLE or self.renderer is None:
             return False
@@ -270,7 +289,8 @@ class VTKManager:
             result = volume_renderer.create_cut_plane(
                 position_percent=position_percent, 
                 normal=normal,
-                return_data=True  # 获取切割数据和平面参数
+                return_data=True,  # 获取切割数据和平面参数
+                omniplane_angle=omniplane_angle
             )
             
             # 从字典中提取数据
@@ -300,7 +320,8 @@ class VTKManager:
                         plane_y_axis=plane_y_axis,
                         fan_apex_offset_x=fan_apex_offset_x,
                         fan_apex_offset_y=fan_apex_offset_y,
-                        fan_apex_offset_z=fan_apex_offset_z
+                        fan_apex_offset_z=fan_apex_offset_z,
+                        omniplane_angle=omniplane_angle
                     )
                 
                 return True
@@ -316,47 +337,58 @@ class VTKManager:
     
     def show_cross_section_window(self, cut_position, normal_vector=None, embedded=False, parent_widget=None,
                                    plane_origin=None, plane_x_axis=None, plane_y_axis=None,
-                                   fan_apex_offset_x=0.0, fan_apex_offset_y=0.0, fan_apex_offset_z=0.0):
+                                   fan_apex_offset_x=0.0, fan_apex_offset_y=0.0, fan_apex_offset_z=0.0,
+                                   omniplane_angle=0):
         """
-        显示2D切片窗口（垂直于切割平面的2D切片图像）
+        显示 2D 切片窗口（垂直于切割平面的 2D 切片图像）
         
-        功能说明:
-            创建并显示2D切片图像，可以选择显示为独立窗口或嵌入到主窗口中。
-            此方法严格按照示例代码中的实现方式，使用vtkImageReslice提取2D切片。
+        创建并显示 2D 切片图像，支持扇形顶点偏移和 Omniplane 角度旋转。
+        可以选择显示为独立窗口或嵌入到主窗口中。使用 Rodrigues 旋转公式
+        实现扫描平面的角度控制，模拟真实 TEE 探头的 Omniplane 功能。
         
-        请求参数:
-            cut_position: float - 切割位置（百分比），0.0-1.0之间，0.5表示50%位置
-            normal_vector: tuple (可选) - 平面法线向量 (nx, ny, nz)，默认(0, 0, 1)垂直于Z轴
-            embedded: bool (可选) - 是否嵌入到主窗口中显示，默认为False（独立窗口）
-            parent_widget: QWidget (可选) - 父窗口部件（当embedded=True时需要）
-            plane_origin: tuple (可选) - 平面原点 (x, y, z)，用于精确定位切割位置
-            plane_x_axis: tuple (可选) - 平面X轴方向 (归一化向量)
-            plane_y_axis: tuple (可选) - 平面Y轴方向 (归一化向量)
-            fan_apex_offset_x: float (可选) - 扇形顶点X轴偏移量，默认为0.0
-            fan_apex_offset_y: float (可选) - 扇形顶点Y轴偏移量，默认为0.0
-            fan_apex_offset_z: float (可选) - 扇形顶点Z轴偏移量，默认为0.0
+        参数:
+            cut_position (float): 切割位置（百分比），0.0-1.0 之间，0.5 表示 50% 位置
+            normal_vector (tuple, 可选): 平面法线向量 (nx, ny, nz)，默认 (0, 0, 1) 垂直于 Z 轴
+            embedded (bool, 可选): 是否嵌入到主窗口中显示，默认为 False（独立窗口）
+            parent_widget (QWidget, 可选): 父窗口部件（当 embedded=True 时需要）
+            plane_origin (tuple, 可选): 平面原点 (x, y, z)，用于精确定位切割位置
+            plane_x_axis (tuple, 可选): 平面 X 轴方向（归一化向量），定义切片局部坐标系的 X 方向
+            plane_y_axis (tuple, 可选): 平面 Y 轴方向（归一化向量），定义切片局部坐标系的 Y 方向
+            fan_apex_offset_x (float, 可选): 扇形顶点 X 轴物理偏移量，基于切片局部坐标系，默认为 0.0
+            fan_apex_offset_y (float, 可选): 扇形顶点 Y 轴物理偏移量，基于切片局部坐标系，默认为 0.0
+            fan_apex_offset_z (float, 可选): 扇形顶点 Z 轴物理偏移量，沿法线方向，默认为 0.0
+            omniplane_angle (int, 可选): Omniplane 旋转角度（0-180 度），控制扫描平面绕法线旋转，默认为 0
         
-        响应格式:
-            如果embedded=False: CrossSectionWindow - 创建的2D切片窗口实例
-            如果embedded=True: QVTKRenderWindowInteractor - 包含2D切片渲染的VTK小部件
-            如果创建失败则返回None
+        返回:
+            CrossSectionWindow 或 QVTKRenderWindowInteractor 或 None:
+                - 如果 embedded=False: 返回创建的 2D 切片窗口实例
+                - 如果 embedded=True: 返回包含 2D 切片渲染的 VTK 小部件
+                - 如果创建失败则返回 None
         
         逻辑:
-            1. 检查VTK可用性
-            2. 从volume_renderer获取VTK图像数据
-            3. 根据embedded参数选择创建独立窗口或内嵌小部件
-            4. 保存引用避免被垃圾回收
-            5. 返回创建的窗口或小部件
+            1. 检查 VTK 可用性
+            2. 从 volume_renderer 获取 VTK 图像数据
+            3. 根据 embedded 参数选择创建独立窗口或内嵌小部件
+            4. 传递扇形顶点偏移和 Omniplane 角度参数到渲染器
+            5. 保存引用避免被垃圾回收
+            6. 返回创建的窗口或小部件
         
-        响应示例:
+        示例:
             >>> vtk_manager = VTKManager()
-            >>> # 创建独立窗口
+            >>> # 创建独立窗口（0度角度）
             >>> window = vtk_manager.show_cross_section_window(0.5, (0, 0, 1))
             >>> print(window.windowTitle())
             "2D切片视图 - 法线: (0, 0, 1)"
             
+            >>> # 创建独立窗口（45度 Omniplane 角度）
+            >>> window = vtk_manager.show_cross_section_window(
+            ...     0.5, (0, 0, 1), omniplane_angle=45
+            ... )
+            
             >>> # 创建内嵌小部件
-            >>> widget = vtk_manager.show_cross_section_window(0.5, (0, 0, 1), embedded=True, parent_widget=main_window)
+            >>> widget = vtk_manager.show_cross_section_window(
+            ...     0.5, (0, 0, 1), embedded=True, parent_widget=main_window
+            ... )
         
         相关文件:
             src/gui/vtk_manager.py
@@ -364,10 +396,11 @@ class VTKManager:
             src/core/volume_render.py
         
         注意事项:
-            - 此方法依赖于VTK库和volume_renderer模块
-            - 当embedded=True时，需要提供parent_widget参数
+            - 此方法依赖于 VTK 库和 volume_renderer 模块
+            - 当 embedded=True 时，需要提供 parent_widget 参数
             - 使用正交投影相机，保持图像比例不变
             - 自动调整颜色窗口/级别以适应医学图像显示
+            - Omniplane 角度使用 Rodrigues 旋转公式计算：v_rot = v*cos(θ) + (k×v)*sin(θ) + k*(k·v)*(1-cos(θ))
         """
         if not VTK_AVAILABLE:
             print("警告: VTK不可用，无法显示2D切片窗口")
@@ -404,7 +437,8 @@ class VTKManager:
                     plane_y_axis=plane_y_axis,
                     fan_apex_offset_x=fan_apex_offset_x,
                     fan_apex_offset_y=fan_apex_offset_y,
-                    fan_apex_offset_z=fan_apex_offset_z
+                    fan_apex_offset_z=fan_apex_offset_z,
+                    omniplane_angle=omniplane_angle
                 )
                 
                 # 保存小部件引用
@@ -426,7 +460,8 @@ class VTKManager:
                     plane_y_axis=plane_y_axis,
                     fan_apex_offset_x=fan_apex_offset_x,
                     fan_apex_offset_y=fan_apex_offset_y,
-                    fan_apex_offset_z=fan_apex_offset_z
+                    fan_apex_offset_z=fan_apex_offset_z,
+                    omniplane_angle=omniplane_angle
                 )
                 
                 # 保存窗口引用，避免被垃圾回收

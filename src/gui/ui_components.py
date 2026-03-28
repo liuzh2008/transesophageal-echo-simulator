@@ -242,6 +242,26 @@ class UIComponents:
         # 添加分隔线
         layout.addWidget(UIComponents._create_separator())
         
+        # Omniplane 角度控制 - 经食管超声(TEE)探头扫描平面旋转控制
+        # Omniplane 技术允许在不移动探头的情况下，通过电子控制改变超声扫描平面的角度
+        # 角度范围 0-180 度，模拟真实 TEE 探头的角度控制能力
+        omniplane_label = QLabel("Omniplane 角度: 0°")
+        omniplane_label.setStyleSheet("font-weight: bold; margin-top: 10px;")
+        layout.addWidget(omniplane_label)
+        
+        # Omniplane 角度滑块 - 控制扫描平面的旋转角度
+        # @ui_control {QSlider} omniplane_slider - 角度控制滑块，范围 0-180 度
+        # @ui_control {int} tickInterval - 刻度间隔 15 度，对应临床常用的角度预设
+        omniplane_slider = QSlider(Qt.Horizontal)
+        omniplane_slider.setRange(0, 180)  # 标准 TEE 探头角度范围
+        omniplane_slider.setValue(0)       # 默认 0 度（水平扫描平面）
+        omniplane_slider.setTickInterval(15)
+        omniplane_slider.setTickPosition(QSlider.TicksBelow)
+        layout.addWidget(omniplane_slider)
+        
+        # 添加分隔线
+        layout.addWidget(UIComponents._create_separator())
+        
         # 扇形顶点偏移控制
         fan_apex_label = QLabel("扇形顶点偏移:")
         fan_apex_label.setStyleSheet("font-weight: bold; margin-top: 10px;")
@@ -280,6 +300,8 @@ class UIComponents:
             'opacity_slider': opacity_slider,
             'cut_plane_button': cut_plane_button,
             'cut_plane_time_label': time_label,  # 新增计时标签
+            'omniplane_slider': omniplane_slider,
+            'omniplane_label': omniplane_label,
             'fan_apex_x_slider': fan_apex_x_slider,
             'fan_apex_y_slider': fan_apex_y_slider,
             'fan_apex_z_slider': fan_apex_z_slider,
